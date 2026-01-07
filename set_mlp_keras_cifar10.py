@@ -47,11 +47,14 @@ from keras import optimizers
 import numpy as np
 from tensorflow.keras import backend as K
 #Please note that in newer versions of keras_contrib you may encounter some import errors. You can find a fix for it on the Internet, or as an alternative you can try other activations functions.
+from base_strategy import BaseSETStrategy
 from srelu import SReLU
 from keras.datasets import cifar10
 from keras.utils import to_categorical
 
 from keras.constraints import Constraint
+
+from utils import MagnitudeSET
 
 
 class MaskWeights(Constraint):
@@ -93,7 +96,9 @@ def createWeightsMask(epsilon, noRows, noCols):
 
 class SET_MLP_CIFAR10:
 
-    def __init__(self):
+    def __init__(self, strategy: BaseSETStrategy):
+        self.strategy = strategy
+
         # set model parameters
         self.epsilon = 20  # control the sparsity level as discussed in the paper
         self.zeta = 0.3  # the fraction of the weights removed
@@ -169,31 +174,30 @@ class SET_MLP_CIFAR10:
         maybe_set("dense_4", self.w4)
 
     def rewireMask(self, weights, noWeights):
-        # rewire weight matrix
 
         # remove zeta largest negative and smallest positive weights
-        values = np.sort(weights.ravel())
-        firstZeroPos = find_first_pos(values, 0)
-        lastZeroPos = find_last_pos(values, 0)
-        largestNegative = values[int((1 - self.zeta) * firstZeroPos)]
-        smallestPositive = values[int(
-            min(values.shape[0] - 1,
-                lastZeroPos + self.zeta * (values.shape[0] - lastZeroPos)))]
-        rewiredWeights = weights.copy()
-        rewiredWeights[rewiredWeights > smallestPositive] = 1
-        rewiredWeights[rewiredWeights < largestNegative] = 1
-        rewiredWeights[rewiredWeights != 1] = 0
+        keep_mask = self.strategy.prune_neurons(weights.ravel())
+        rewiredWeights = keep_mask.reshape(weights.shape).astype(float)
         weightMaskCore = rewiredWeights.copy()
 
-        # add zeta random weights
-        nrAdd = 0
-        noRewires = noWeights - np.sum(rewiredWeights)
-        while (nrAdd < noRewires):
-            i = np.random.randint(0, rewiredWeights.shape[0])
-            j = np.random.randint(0, rewiredWeights.shape[1])
-            if (rewiredWeights[i, j] == 0):
-                rewiredWeights[i, j] = 1
-                nrAdd += 1
+        occupied = set(zip(*np.where(rewiredWeights == 1)))
+        noRewires = int(noWeights - np.sum(rewiredWeights))
+        new_positions = self.strategy.regrow_neurons(noRewires, weights.shape,
+                                                     occupied)
+
+        for i, j in new_positions:
+            rewiredWeights[i, j] = 1
+
+        # noRewires = noWeights - np.sum(rewiredWeights)
+        # zero_positions = np.argwhere(rewiredWeights == 0)
+        # indices_to_add = np.random.choice(len(zero_positions),
+        #                                   size=int(
+        #                                       min(noRewires,
+        #                                           len(zero_positions))),
+        #                                   replace=False)
+        # positions_to_add = zero_positions[indices_to_add]
+        #
+        # rewiredWeights[positions_to_add[:, 0], positions_to_add[:, 1]] = 1
 
         return [rewiredWeights, weightMaskCore]
 
@@ -216,7 +220,7 @@ class SET_MLP_CIFAR10:
         self.w2[0] = self.w2[0] * self.wm2Core
         self.w3[0] = self.w3[0] * self.wm3Core
 
-    def train(self, target_accuracy=None):
+    def train(self, target_accuracy=1.0):
 
         # read CIFAR10 data
         [x_train, x_test, y_train, y_test] = self.read_data()
@@ -294,8 +298,10 @@ class SET_MLP_CIFAR10:
 
 if __name__ == '__main__':
 
+    set_strategy = MagnitudeSET()
+
     # create and run a SET-MLP model on CIFAR10
-    model = SET_MLP_CIFAR10()
+    model = SET_MLP_CIFAR10(set_strategy)
 
     # train the SET-MLP model until 40%
     epoch_count = model.train(target_accuracy=0.4)
