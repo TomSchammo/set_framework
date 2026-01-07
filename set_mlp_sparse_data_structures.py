@@ -334,7 +334,8 @@ class SET_MLP:
             weight_decay=0.0002,
             zeta=0.3,
             testing=True,
-            save_filename=""):
+            save_filename="",
+            target_accuracy=1.0):
         """
         :param x: (array) Containing parameters
         :param y_true: (array) Containing one hot encoded labels.
@@ -360,6 +361,7 @@ class SET_MLP:
 
         metrics = np.zeros((epochs, 3))
 
+        epoch_count = -1
         for i in range(epochs):
             # Shuffle the data
             seed = np.arange(x.shape[0])
@@ -398,6 +400,10 @@ class SET_MLP:
                       "; Accuracy: ", accuracy, "; Maximum accuracy: ",
                       maximum_accuracy)
 
+                if accuracy >= target_accuracy:
+                    epoch_count = i
+                    break
+
             t5 = datetime.datetime.now()
             if (i < epochs - 1
                 ):  # do not change connectivity pattern after the last epoch
@@ -411,7 +417,7 @@ class SET_MLP:
             if (save_filename != ""):
                 np.savetxt(save_filename, metrics)
 
-        return metrics
+        return epoch_count, metrics
 
     def weightsEvolution(self):
         # this represents the core of the SET procedure. It removes the weights closest to zero in each layer and add new random weights
@@ -609,19 +615,23 @@ if __name__ == "__main__":
                       epsilon=20)
 
     # train SET-MLP
-    set_mlp.fit(X_train,
-                Y_train,
-                X_test,
-                Y_test,
-                loss=MSE,
-                epochs=100,
-                batch_size=256,
-                learning_rate=0.01,
-                momentum=0.9,
-                weight_decay=0.0002,
-                zeta=0.3,
-                testing=True,
-                save_filename="results/set_mlp.txt")
+    epoch_count, _ = set_mlp.fit(X_train,
+                                 Y_train,
+                                 X_test,
+                                 Y_test,
+                                 loss=MSE,
+                                 epochs=30,
+                                 batch_size=100,
+                                 learning_rate=0.01,
+                                 momentum=0.9,
+                                 weight_decay=0.0002,
+                                 zeta=0.3,
+                                 testing=True,
+                                 save_filename="results/set_mlp.txt",
+                                 target_accuracy=0.4)
+
+    print(f"it took {epoch_count} epochs until convergence" if epoch_count >
+          0 else "model did not converge within max number allowed of epochs")
 
     # test SET-MLP
     accuracy, _ = set_mlp.predict(X_test, Y_test, batch_size=1)
