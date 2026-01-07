@@ -14,7 +14,7 @@ def find_last_pos(array, value):
     return array.shape[0] - idx
 
 
-class MagnitudeSET(BaseSETStrategy):
+class RandomSET(BaseSETStrategy):
 
     def __init__(self, zeta: float = 0.3):
         super().__init__(zeta)

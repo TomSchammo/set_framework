@@ -1,4 +1,4 @@
-from utils import MagnitudeSET
+from utils import RandomSET
 from set_keras import SET_MLP_CIFAR10
 
 from argparse import ArgumentParser
@@ -13,7 +13,7 @@ print(
     f"---- Training until convergence to {args.target_accuracy} accuracy (max {args.max_epochs} epochs) ----"
 )
 
-strategies = [MagnitudeSET()]
+strategies = [RandomSET()]
 
 models = [SET_MLP_CIFAR10]
 

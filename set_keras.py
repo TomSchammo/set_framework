@@ -54,7 +54,7 @@ from keras.utils import to_categorical
 
 from keras.constraints import Constraint
 
-from utils import MagnitudeSET
+from utils import RandomSET
 
 
 class MaskWeights(Constraint):
@@ -298,7 +298,7 @@ class SET_MLP_CIFAR10:
 
 if __name__ == '__main__':
 
-    set_strategy = MagnitudeSET()
+    set_strategy = RandomSET()
 
     # create and run a SET-MLP model on CIFAR10
     model = SET_MLP_CIFAR10(set_strategy, max_epochs=60)
