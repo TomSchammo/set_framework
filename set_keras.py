@@ -96,14 +96,14 @@ def createWeightsMask(epsilon, noRows, noCols):
 
 class SET_MLP_CIFAR10:
 
-    def __init__(self, strategy: BaseSETStrategy):
+    def __init__(self, strategy: BaseSETStrategy, max_epochs):
         self.strategy = strategy
 
         # set model parameters
         self.epsilon = 20  # control the sparsity level as discussed in the paper
         self.zeta = 0.3  # the fraction of the weights removed
         self.batch_size = 100  # batch size
-        self.maxepoches = 60  # number of epochs
+        self.maxepoches = max_epochs  # number of epochs
         self.learning_rate = 0.01  # SGD learning rate
         self.num_classes = 10  # number of classes
         self.momentum = 0.9  # SGD momentum
@@ -301,7 +301,7 @@ if __name__ == '__main__':
     set_strategy = MagnitudeSET()
 
     # create and run a SET-MLP model on CIFAR10
-    model = SET_MLP_CIFAR10(set_strategy)
+    model = SET_MLP_CIFAR10(set_strategy, max_epochs=60)
 
     # train the SET-MLP model until 40%
     epoch_count = model.train(target_accuracy=0.4)
