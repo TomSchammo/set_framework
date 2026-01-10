@@ -47,14 +47,14 @@ from keras import optimizers
 import numpy as np
 from tensorflow.keras import backend as K
 #Please note that in newer versions of keras_contrib you may encounter some import errors. You can find a fix for it on the Internet, or as an alternative you can try other activations functions.
-from base_strategy import BaseSETStrategy
+from strategies.base_strategy import BaseSETStrategy
 from srelu import SReLU
 from keras.datasets import cifar10
 from keras.utils import to_categorical
 
 from keras.constraints import Constraint
 
-from utils import RandomSET
+from strategies.random_set import RandomSET
 
 
 class MaskWeights(Constraint):

@@ -1,7 +1,7 @@
 import numpy as np
 from typing import Tuple, Optional, Set, List
 
-from base_strategy import BaseSETStrategy
+from .base_strategy import BaseSETStrategy
 
 
 def find_first_pos(array, value):
