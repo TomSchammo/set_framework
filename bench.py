@@ -56,7 +56,7 @@ def main():
 
     models = [SET_MLP_CIFAR10]
 
-    results: list[tuple[str, int]] = []
+    results: list[tuple[str, int | float]] = []
 
     for model_cls in models:
         for strategy in strategies:
@@ -71,8 +71,8 @@ def main():
                 print(
                     f"Reached {best_accuracy*100}% accuracy after {max_epochs} epochs"
                 )
-                results.append((f"{strategy.__class__.__name__}",
-                                int(best_accuracy * 100)))
+                results.append(
+                    (f"{strategy.__class__.__name__}", best_accuracy * 100))
 
 
 # Pretty print results in a table
@@ -83,7 +83,7 @@ def main():
         )
     else:
         print(
-            f"{'Strategy (' + str(max_epochs) + 'epochs)':<40} | {'Epochs':>7}"
+            f"{'Strategy (' + str(max_epochs) + ' epochs)':<40} | {'Accuracy (%)':>7}"
         )
 
     print("-" * 60)
