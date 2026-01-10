@@ -11,11 +11,27 @@ parser.add_argument('--accuracy',
                     action="store_true",
                     required=False)
 parser.add_argument('--time', type=bool, action="store_true", required=False)
+parser.add_argument('--help', type=bool, action="store_true", required=False)
 
+def print_help():
+    print("""
+Usage: python bench.py --max_epochs <N> (--accuracy | --time) [--target_accuracy <X>] [--help]
+
+Options:
+  --max_epochs <N>         Required. Number of epochs to train for (if --accuracy) or max allowed for convergence (if --time).
+  --accuracy               Benchmark accuracy achieved after a fixed amount of epochs.
+  --time                   Benchmark how many epochs are needed to achieve a target accuracy (must provide --target_accuracy).
+  --target_accuracy <X>    Target accuracy to reach for convergence time benchmarking. Required with --time.
+  --help                   Show this help message and exit.
+""")
 
 def main():
 
     args = parser.parse_args()
+
+    if args.help:
+        print_help()
+        return
 
     assert args.accuracy != args.time, "Expected either 'accuracy' or 'time'"
 
