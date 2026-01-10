@@ -88,7 +88,10 @@ def main():
 
     print("-" * 60)
     for name, metric in results:
-        print(f"{name:<40} | {metric:>7}")
+        if isinstance(metric, float):
+            print(f"{name:<40} | {metric:7.2f}")
+        else:
+            print(f"{name:<40} | {metric:>7}")
     print("=" * 60)
 
 if __name__ == "__main__":
