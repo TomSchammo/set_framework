@@ -248,6 +248,7 @@ class SET_MLP_CIFAR10:
         # training process in a for loop
         self.accuracies_per_epoch = []
         epoch_count = -1
+        best_accuracy = 0.0
         for epoch in range(0, self.maxepoches):
 
             sgd = optimizers.SGD(learning_rate=self.learning_rate,
@@ -264,6 +265,8 @@ class SET_MLP_CIFAR10:
                 initial_epoch=epoch - 1)
 
             accuracy = historytemp.history['val_accuracy'][0]
+            if accuracy > best_accuracy:
+                best_accuracy = accuracy
             self.accuracies_per_epoch.append(accuracy)
 
             if accuracy >= target_accuracy:
@@ -276,7 +279,7 @@ class SET_MLP_CIFAR10:
             self.create_model()
 
         self.accuracies_per_epoch = np.asarray(self.accuracies_per_epoch)
-        return epoch_count
+        return epoch_count, best_accuracy
 
     def read_data(self):
 
