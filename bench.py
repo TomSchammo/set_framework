@@ -1,4 +1,4 @@
-from utils import RandomSET
+from random_set import RandomSET
 from set_keras import SET_MLP_CIFAR10
 
 from argparse import ArgumentParser
