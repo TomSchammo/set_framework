@@ -39,7 +39,7 @@ def main():
     if args.time:
         assert args.target_accuracy, "You forgot to set a target_accuracy!"
         print(
-            f"---- Training until convergence to {args.target_accuracy} accuracy (max {args.max_epochs} epochs) ----"
+            f"\n\n---- Training until convergence to {args.target_accuracy} accuracy (max {args.max_epochs} epochs) ----\n\n"
         )
 
     if args.accuracy:
@@ -47,7 +47,7 @@ def main():
             print(
                 f"\033[33m[Warning]: You set a target_accuracy ({args.target_accuracy}) but are not benchmarking convergance time! Target accuracy will have no effect!\033[0m"
             )
-        print(f"---- Training for {args.max_epochs} epochs ----")
+        print(f"\n\n---- Training for {args.max_epochs} epochs ----\n\n")
 
     target_accuracy = 1.0 if args.accuracy else args.target_accuracy
     max_epochs = args.max_epochs
