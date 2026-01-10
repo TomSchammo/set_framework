@@ -3,15 +3,13 @@ from set_keras import SET_MLP_CIFAR10
 
 from argparse import ArgumentParser
 
-parser = ArgumentParser()
+parser = ArgumentParser(add_help=False)
 parser.add_argument('--target_accuracy', type=float, required=False)
-parser.add_argument('--max_epochs', type=int, required=True)
-parser.add_argument('--accuracy',
-                    type=bool,
-                    action="store_true",
-                    required=False)
-parser.add_argument('--time', type=bool, action="store_true", required=False)
-parser.add_argument('--help', type=bool, action="store_true", required=False)
+parser.add_argument('--max_epochs', type=int, required=False)
+parser.add_argument('--accuracy', action="store_true", required=False)
+parser.add_argument('--time', action="store_true", required=False)
+parser.add_argument('--help', action="store_true", required=False)
+
 
 def print_help():
     print("""
@@ -25,6 +23,7 @@ Options:
   --help                   Show this help message and exit.
 """)
 
+
 def main():
 
     args = parser.parse_args()
@@ -32,6 +31,8 @@ def main():
     if args.help:
         print_help()
         return
+
+    assert args.max_epochs, "Max epochs has to be provided!"
 
     assert args.accuracy != args.time, "Expected either 'accuracy' or 'time'"
 
