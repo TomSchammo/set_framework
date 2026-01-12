@@ -173,17 +173,17 @@ class SET_MLP_CIFAR10:
         maybe_set("srelu3", self.wSRelu3)
         maybe_set("dense_4", self.w4)
 
-    def rewireMask(self, weights, noWeights):
+    def rewireMask(self, weights, noWeights, mask, extra_info = None):
 
         # remove zeta largest negative and smallest positive weights
-        keep_mask = self.strategy.prune_neurons(weights.ravel())
+        keep_mask = self.strategy.prune_neurons(weights.ravel(), mask.ravel())
         rewiredWeights = keep_mask.reshape(weights.shape).astype(float)
         weightMaskCore = rewiredWeights.copy()
 
         occupied = set(zip(*np.where(rewiredWeights == 1)))
         noRewires = int(noWeights - np.sum(rewiredWeights))
         new_positions = self.strategy.regrow_neurons(noRewires, weights.shape,
-                                                     occupied)
+                                                     occupied, extra_info)
 
         for i, j in new_positions:
             rewiredWeights[i, j] = 1
@@ -212,14 +212,14 @@ class SET_MLP_CIFAR10:
         self.wSRelu2 = self.model.get_layer("srelu2").get_weights()
         self.wSRelu3 = self.model.get_layer("srelu3").get_weights()
 
-        [self.wm1, self.wm1Core] = self.rewireMask(self.w1[0], self.noPar1)
-        [self.wm2, self.wm2Core] = self.rewireMask(self.w2[0], self.noPar2)
-        [self.wm3, self.wm3Core] = self.rewireMask(self.w3[0], self.noPar3)
+        [self.wm1, self.wm1Core] = self.rewireMask(self.w1[0], self.noPar1, self.wm1, {"layer": "layer_1", "self" : self})
+        [self.wm2, self.wm2Core] = self.rewireMask(self.w2[0], self.noPar2, self.wm2, {"layer": "layer_2", "self" : self})
+        [self.wm3, self.wm3Core] = self.rewireMask(self.w3[0], self.noPar3, self.wm3, {"layer": "layer_3", "self" : self})
 
         self.w1[0] = self.w1[0] * self.wm1Core
         self.w2[0] = self.w2[0] * self.wm2Core
         self.w3[0] = self.w3[0] * self.wm3Core
-
+        
     def train(self, target_accuracy=1.0):
 
         # read CIFAR10 data

@@ -1,4 +1,5 @@
 from strategies.random_set import RandomSET
+from strategies.neuron_centrality import NeuronCentralitySET
 from set_keras import SET_MLP_CIFAR10
 
 from argparse import ArgumentParser
@@ -52,7 +53,7 @@ def main():
     target_accuracy = 1.0 if args.accuracy else args.target_accuracy
     max_epochs = args.max_epochs
 
-    strategies = [RandomSET()]
+    strategies = [NeuronCentralitySET()]
 
     models = [SET_MLP_CIFAR10]
 
