@@ -4,6 +4,8 @@ from set_keras import SET_MLP_CIFAR10
 
 from argparse import ArgumentParser
 
+import tensorflow as tf
+
 parser = ArgumentParser(add_help=False)
 parser.add_argument('--target_accuracy', type=float, required=False)
 parser.add_argument('--max_epochs', type=int, required=False)
@@ -52,6 +54,17 @@ def main():
 
     target_accuracy = 1.0 if args.accuracy else args.target_accuracy
     max_epochs = args.max_epochs
+
+    gpus = tf.config.list_physical_devices("GPU")
+    if gpus:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+
+        # Limit GPU:0 to 10 GiB (10240 MiB)
+        tf.config.set_logical_device_configuration(
+            gpus[0],
+            [tf.config.LogicalDeviceConfiguration(memory_limit=10240)]
+        )
 
     strategies = [NeuronCentralitySET()]
 

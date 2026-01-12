@@ -249,13 +249,14 @@ class SET_MLP_CIFAR10:
         self.accuracies_per_epoch = []
         epoch_count = -1
         best_accuracy = 0.0
-        for epoch in range(0, self.maxepoches):
 
-            sgd = optimizers.SGD(learning_rate=self.learning_rate,
-                                 momentum=self.momentum)
-            self.model.compile(loss='categorical_crossentropy',
-                               optimizer=sgd,
-                               metrics=['accuracy'])
+        sgd = optimizers.SGD(learning_rate=self.learning_rate,
+                        momentum=self.momentum)
+        self.model.compile(loss='categorical_crossentropy',
+                    optimizer=sgd,
+                    metrics=['accuracy'])
+
+        for epoch in range(0, self.maxepoches):
 
             historytemp = self.model.fit(
                 datagen.flow(x_train, y_train, batch_size=self.batch_size),
@@ -275,8 +276,9 @@ class SET_MLP_CIFAR10:
 
             #ugly hack to avoid tensorflow memory increase for multiple fit_generator calls. Theano shall work more nicely this but it is outdated in general
             self.weightsEvolution()
-            K.clear_session()
-            self.create_model()
+            # K.clear_session()
+            # self.create_model()
+            self._restore_previous_weights()
 
         self.accuracies_per_epoch = np.asarray(self.accuracies_per_epoch)
         return epoch_count, best_accuracy
@@ -300,7 +302,6 @@ class SET_MLP_CIFAR10:
 
 
 if __name__ == '__main__':
-
     set_strategy = RandomSET()
 
     # create and run a SET-MLP model on CIFAR10

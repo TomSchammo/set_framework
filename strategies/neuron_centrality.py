@@ -139,7 +139,8 @@ class NeuronCentralitySET(BaseSETStrategy):
 
                 # (Normal mapping would be: I_target[rows] * I_source[cols])
 
-                scores = self.alpha * imp_prod + (1.0 - self.alpha) * (1.0 / float(N_zero))
+                #scores = self.alpha * imp_prod + (1.0 - self.alpha) * (1.0 / float(N_zero))
+                scores = self.alpha * imp_prod + (1.0 - self.alpha) * (1.0)
 
                 ssum = scores.sum()
                 if np.isfinite(ssum) and ssum > self.eps:
