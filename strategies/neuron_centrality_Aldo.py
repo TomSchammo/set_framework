@@ -65,7 +65,6 @@ class NeuronCentralitySET(BaseSETStrategy):
         nz_idx = np.where(m)[0]
         n = nz_idx.size
 
-        # Must return an array of same length as w
         keep = m.copy()
 
         if n == 0:
@@ -140,7 +139,7 @@ class NeuronCentralitySET(BaseSETStrategy):
 
                 ssum = scores.sum()
                 if np.isfinite(ssum) and ssum > self.eps:
-                    probs = scores / ssum  # else leave as None for uniform
+                    probs = scores / ssum
 
         chosen = np.random.choice(N_zero, size=k, replace=False, p=probs)
         return [zeros[idx] for idx in chosen]
