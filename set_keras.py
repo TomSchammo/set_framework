@@ -37,28 +37,35 @@
 #isbn = "978-90-386-4305-2",
 #publisher = "Eindhoven University of Technology",
 #}
+# Author: Decebal Constantin Mocanu et al.;
+# Proof of concept implementation of Sparse Evolutionary Training (SET) of Multi Layer Perceptron (MLP) on CIFAR10 using Keras and a mask over weights.
+
 
 from __future__ import division
 from __future__ import print_function
+
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from keras.models import Sequential
-from keras.layers import Dense, Dropout, Activation, Flatten
+from keras.models import Sequential, Model
+from keras.layers import Dense, Dropout, Activation, Flatten, Input, Add
 from keras import optimizers
 import numpy as np
 from tensorflow.keras import backend as K
-#Please note that in newer versions of keras_contrib you may encounter some import errors. You can find a fix for it on the Internet, or as an alternative you can try other activations functions.
+import tensorflow as tf
+
 from strategies.base_strategy import BaseSETStrategy
 from srelu import SReLU
 from keras.datasets import cifar10
 from keras.utils import to_categorical
-
 from keras.constraints import Constraint
 
+# strategies live in their own files
 from strategies.random_set import RandomSET
+from strategies.neuron_centrality import NeuronCentralitySET
+from strategies.ema import NeuronEMASet
+from strategies.fisher_diagonal_skip_set import FisherDiagonalSkipSET
 
 
 class MaskWeights(Constraint):
-
     def __init__(self, mask):
         self.mask = mask
         self.mask = K.cast(self.mask, K.floatx())
@@ -71,138 +78,219 @@ class MaskWeights(Constraint):
         return {'mask': self.mask}
 
 
-def find_first_pos(array, value):
-    idx = (np.abs(array - value)).argmin()
-    return idx
-
-
-def find_last_pos(array, value):
-    idx = (np.abs(array - value))[::-1].argmin()
-    return array.shape[0] - idx
-
-
 def createWeightsMask(epsilon, noRows, noCols):
-    # generate an Erdos Renyi sparse weights mask
     mask_weights = np.random.rand(noRows, noCols)
-    prob = 1 - (epsilon * (noRows + noCols)) / (
-        noRows * noCols)  # normal tp have 8x connections
+    prob = 1 - (epsilon * (noRows + noCols)) / (noRows * noCols)
     mask_weights[mask_weights < prob] = 0
     mask_weights[mask_weights >= prob] = 1
     noParameters = np.sum(mask_weights)
-    print("Create Sparse Matrix: No parameters, NoRows, NoCols ", noParameters,
-          noRows, noCols)
+    print("Create Sparse Matrix: No parameters, NoRows, NoCols ", noParameters, noRows, noCols)
     return [noParameters, mask_weights]
 
 
 class SET_MLP_CIFAR10:
-
     def __init__(self, strategy: BaseSETStrategy, max_epochs):
         self.strategy = strategy
 
-        # set model parameters
-        self.epsilon = 20  # control the sparsity level as discussed in the paper
-        self.zeta = 0.3  # the fraction of the weights removed
-        self.batch_size = 100  # batch size
-        self.maxepoches = max_epochs  # number of epochs
-        self.learning_rate = 0.01  # SGD learning rate
-        self.num_classes = 10  # number of classes
-        self.momentum = 0.9  # SGD momentum
+        self.epsilon = 20
+        self.zeta = 0.3
+        self.batch_size = 100
+        self.maxepoches = max_epochs
+        self.learning_rate = 0.01
+        self.num_classes = 10
+        self.momentum = 0.9
 
-        # generate an Erdos Renyi sparse weights mask for each layer
-        [self.noPar1, self.wm1] = createWeightsMask(self.epsilon, 32 * 32 * 3,
-                                                    4000)
+        # masks
+        [self.noPar1, self.wm1] = createWeightsMask(self.epsilon, 32 * 32 * 3, 4000)
         [self.noPar2, self.wm2] = createWeightsMask(self.epsilon, 4000, 1000)
         [self.noPar3, self.wm3] = createWeightsMask(self.epsilon, 1000, 4000)
 
-        # initialize layers weights
-        self.w1 = None
-        self.w2 = None
-        self.w3 = None
-        self.w4 = None
+        # skip mask exists; only used when strategy is FisherDiagonalSkipSET
+        [self.noParSkip02, self.wmSkip02] = createWeightsMask(self.epsilon, 32 * 32 * 3, 1000)
 
-        # initialize weights for SReLu activation function
-        self.wSRelu1 = None
-        self.wSRelu2 = None
-        self.wSRelu3 = None
+        # weights holders
+        self.w1 = self.w2 = self.w3 = self.w4 = None
+        self.wSkip02 = None
 
-        # create a SET-MLP model
+        # SReLU weights
+        self.wSRelu1 = self.wSRelu2 = self.wSRelu3 = None
+
         self.create_model()
 
     def create_model(self):
+        use_skip = isinstance(self.strategy, FisherDiagonalSkipSET)
 
-        # create a SET-MLP model for CIFAR10 with 3 hidden layers
-        self.model = Sequential()
-        self.model.add(Flatten(input_shape=(32, 32, 3)))
-        self.model.add(
-            Dense(4000,
-                  name="sparse_1",
-                  kernel_constraint=MaskWeights(self.wm1)))
-        self.model.add(SReLU(name="srelu1"))
-        self.model.add(Dropout(0.3))
-        self.model.add(
-            Dense(1000,
-                  name="sparse_2",
-                  kernel_constraint=MaskWeights(self.wm2)))
-        self.model.add(SReLU(name="srelu2"))
-        self.model.add(Dropout(0.3))
-        self.model.add(
-            Dense(4000,
-                  name="sparse_3",
-                  kernel_constraint=MaskWeights(self.wm3)))
-        self.model.add(SReLU(name="srelu3"))
-        self.model.add(Dropout(0.3))
-        self.model.add(
-            Dense(self.num_classes, name="dense_4")
-        )  #please note that there is no need for a sparse output layer as the number of classes is much smaller than the number of input hidden neurons
-        self.model.add(Activation('softmax'))
+        if not use_skip:
+            # Sequential original (Random/Centrality/EMA)
+            self.model = Sequential()
+            self.model.add(Flatten(input_shape=(32, 32, 3)))
+            self.model.add(Dense(4000, name="sparse_1", kernel_constraint=MaskWeights(self.wm1)))
+            self.model.add(SReLU(name="srelu1"))
+            self.model.add(Dropout(0.3))
+            self.model.add(Dense(1000, name="sparse_2", kernel_constraint=MaskWeights(self.wm2)))
+            self.model.add(SReLU(name="srelu2"))
+            self.model.add(Dropout(0.3))
+            self.model.add(Dense(4000, name="sparse_3", kernel_constraint=MaskWeights(self.wm3)))
+            self.model.add(SReLU(name="srelu3"))
+            self.model.add(Dropout(0.3))
+            self.model.add(Dense(self.num_classes, name="dense_4"))
+            self.model.add(Activation('softmax'))
+            self._restore_previous_weights()
+            return
 
-        # If we already have weights from a previous training phase, reapply them
+        # FisherDiagonalSkipSET -> Functional model with skip: x -> layer2
+        inp = Input(shape=(32, 32, 3))
+        x = Flatten(name="flatten")(inp)
+
+        h1 = Dense(4000, name="sparse_1", kernel_constraint=MaskWeights(self.wm1))(x)
+        h1 = SReLU(name="srelu1")(h1)
+        h1 = Dropout(0.3)(h1)
+
+        h2_main = Dense(1000, name="sparse_2", kernel_constraint=MaskWeights(self.wm2))(h1)
+        h2_skip = Dense(1000, name="skip_02", kernel_constraint=MaskWeights(self.wmSkip02))(x)
+        h2 = Add(name="add_02")([h2_main, h2_skip])
+        h2 = SReLU(name="srelu2")(h2)
+        h2 = Dropout(0.3)(h2)
+
+        h3 = Dense(4000, name="sparse_3", kernel_constraint=MaskWeights(self.wm3))(h2)
+        h3 = SReLU(name="srelu3")(h3)
+        h3 = Dropout(0.3)(h3)
+
+        out = Dense(self.num_classes, name="dense_4")(h3)
+        out = Activation("softmax")(out)
+
+        self.model = Model(inputs=inp, outputs=out)
         self._restore_previous_weights()
 
     def _restore_previous_weights(self):
-        # helper to load previously stored weights into freshly built layers
+        names = set(l.name for l in self.model.layers)
+
         def maybe_set(name, weights):
-            if weights is not None:
+            if weights is not None and name in names:
                 self.model.get_layer(name).set_weights(weights)
 
         maybe_set("sparse_1", self.w1)
         maybe_set("srelu1", self.wSRelu1)
+
         maybe_set("sparse_2", self.w2)
         maybe_set("srelu2", self.wSRelu2)
+
+        maybe_set("skip_02", self.wSkip02)  # only exists in skip model
+
         maybe_set("sparse_3", self.w3)
         maybe_set("srelu3", self.wSRelu3)
+
         maybe_set("dense_4", self.w4)
 
-    def rewireMask(self, weights, noWeights, mask, extra_info = None):
+    # fisher gradient computation
+    
+    def compute_kernel_grads(self, x_batch, y_batch):
+        k1 = self.model.get_layer("sparse_1").kernel
+        k2 = self.model.get_layer("sparse_2").kernel
+        k3 = self.model.get_layer("sparse_3").kernel
+        kskip = self.model.get_layer("skip_02").kernel
 
-        # remove zeta largest negative and smallest positive weights
-        keep_mask = self.strategy.prune_neurons(weights.ravel(), mask.ravel())
-        rewiredWeights = keep_mask.reshape(weights.shape).astype(float)
-        weightMaskCore = rewiredWeights.copy()
+        loss_fn = tf.keras.losses.CategoricalCrossentropy()
+        with tf.GradientTape() as tape:
+            y_pred = self.model(x_batch, training=True)
+            loss = loss_fn(y_batch, y_pred)
 
-        occupied = set(zip(*np.where(rewiredWeights == 1)))
-        noRewires = int(noWeights - np.sum(rewiredWeights))
-        new_positions = self.strategy.regrow_neurons(noRewires, weights.shape,
-                                                     occupied, extra_info)
+        g1, g2, gskip, g3 = tape.gradient(loss, [k1, k2, kskip, k3])
+        return [g1.numpy(), g2.numpy(), gskip.numpy(), g3.numpy()]
 
+
+    # rewire all strategies
+    def rewireMask(self, weights, noWeights, mask, extra_info=None, fisher_v=None, fisher_g=None):
+        # fisher prune needs v_flat
+        prune_extra = None
+        if fisher_v is not None:
+            prune_extra = {"v_flat": fisher_v.ravel()}
+
+        keep_mask = self.strategy.prune_neurons(weights.ravel(), mask.ravel(), extra_info=prune_extra)
+        rewired = keep_mask.reshape(weights.shape).astype(float)
+        core = rewired.copy()
+
+        occupied = set(zip(*np.where(rewired == 1)))
+        noRewires = int(noWeights - np.sum(rewired))
+
+        grow_extra = extra_info if extra_info is not None else {}
+        grow_extra = dict(grow_extra)
+
+        # fisher regrow needs g,v,mask
+        if fisher_g is not None and fisher_v is not None:
+            grow_extra["g"] = fisher_g
+            grow_extra["v"] = fisher_v
+            grow_extra["mask"] = (rewired == 1)
+
+        new_positions = self.strategy.regrow_neurons(noRewires, weights.shape, occupied, grow_extra)
         for i, j in new_positions:
-            rewiredWeights[i, j] = 1
+            rewired[i, j] = 1
 
-        # noRewires = noWeights - np.sum(rewiredWeights)
-        # zero_positions = np.argwhere(rewiredWeights == 0)
-        # indices_to_add = np.random.choice(len(zero_positions),
-        #                                   size=int(
-        #                                       min(noRewires,
-        #                                           len(zero_positions))),
-        #                                   replace=False)
-        # positions_to_add = zero_positions[indices_to_add]
-        #
-        # rewiredWeights[positions_to_add[:, 0], positions_to_add[:, 1]] = 1
+        return rewired, core
 
-        return [rewiredWeights, weightMaskCore]
+    
+    # fisher special: choose regrowth between W2 and skip
+    def fisher_choose_between_W2_and_skip(self, W2, K2, M2, g2, v2,
+                                         Wskip, Kskip, Mskip, gskip, vskip):
 
-    def weightsEvolution(self):
-        # this represents the core of the SET procedure. It removes the weights closest to zero in each layer and add new random weights
+        # prune W2
+        keep2 = self.strategy.prune_neurons(W2.ravel(), M2.ravel(), extra_info={"v_flat": v2.ravel()})
+        newM2 = keep2.reshape(W2.shape).astype(float)
+        core2 = newM2.copy()
+        mask2 = (newM2 == 1)
+        need2 = int(K2 - np.sum(newM2))
+
+        # prune Wskip
+        keeps = self.strategy.prune_neurons(Wskip.ravel(), Mskip.ravel(), extra_info={"v_flat": vskip.ravel()})
+        newMs = keeps.reshape(Wskip.shape).astype(float)
+        cores = newMs.copy()
+        masks = (newMs == 1)
+        needs = int(Kskip - np.sum(newMs))
+
+        total_need = need2 + needs
+        if total_need <= 0:
+            return newM2, core2, newMs, cores
+
+        inactive2 = np.argwhere(~mask2)
+        inactives = np.argwhere(~masks)
+        if inactive2.shape[0] == 0 and inactives.shape[0] == 0:
+            return newM2, core2, newMs, cores
+
+        cand_total = min(total_need * 20, inactive2.shape[0] + inactives.shape[0])
+        cand2 = min(cand_total // 2, inactive2.shape[0])
+        cands = min(cand_total - cand2, inactives.shape[0])
+
+        merged = []
+
+        if cand2 > 0:
+            idx = np.random.choice(inactive2.shape[0], size=cand2, replace=False)
+            c = inactive2[idx]
+            ci, cj = c[:, 0], c[:, 1]
+            score = (g2[ci, cj] ** 2) / (v2[ci, cj] + self.strategy.eps)
+            for k in range(cand2):
+                merged.append(("W2", int(ci[k]), int(cj[k]), float(score[k])))
+
+        if cands > 0:
+            idx = np.random.choice(inactives.shape[0], size=cands, replace=False)
+            c = inactives[idx]
+            ci, cj = c[:, 0], c[:, 1]
+            score = (gskip[ci, cj] ** 2) / (vskip[ci, cj] + self.strategy.eps)
+            for k in range(cands):
+                merged.append(("WS", int(ci[k]), int(cj[k]), float(score[k])))
+
+        merged.sort(key=lambda t: t[3], reverse=True)
+        merged = merged[:total_need]
+
+        for which, i, j, _ in merged:
+            if which == "W2":
+                newM2[i, j] = 1
+            else:
+                newMs[i, j] = 1
+
+        return newM2, core2, newMs, cores
+
+
+    def weightsEvolution(self, fisher_payload=None):
         self.w1 = self.model.get_layer("sparse_1").get_weights()
         self.w2 = self.model.get_layer("sparse_2").get_weights()
         self.w3 = self.model.get_layer("sparse_3").get_weights()
@@ -212,114 +300,149 @@ class SET_MLP_CIFAR10:
         self.wSRelu2 = self.model.get_layer("srelu2").get_weights()
         self.wSRelu3 = self.model.get_layer("srelu3").get_weights()
 
+        use_skip = isinstance(self.strategy, FisherDiagonalSkipSET)
+        if use_skip:
+            self.wSkip02 = self.model.get_layer("skip_02").get_weights()
+
         match self.strategy.__class__.__name__:
             case "RandomSET":
-                [self.wm1, self.wm1Core] = self.rewireMask(self.w1[0], self.noPar1, self.wm1)
-                [self.wm2, self.wm2Core] = self.rewireMask(self.w2[0], self.noPar2, self.wm2)
-                [self.wm3, self.wm3Core] = self.rewireMask(self.w3[0], self.noPar3, self.wm3)
+                self.wm1, self.wm1Core = self.rewireMask(self.w1[0], self.noPar1, self.wm1)
+                self.wm2, self.wm2Core = self.rewireMask(self.w2[0], self.noPar2, self.wm2)
+                self.wm3, self.wm3Core = self.rewireMask(self.w3[0], self.noPar3, self.wm3)
+
             case "NeuronCentralitySET":
-                [self.wm1, self.wm1Core] = self.rewireMask(self.w1[0], self.noPar1, self.wm1, {"layer": "layer_1", "self" : self})
-                [self.wm2, self.wm2Core] = self.rewireMask(self.w2[0], self.noPar2, self.wm2, {"layer": "layer_2", "self" : self})
-                [self.wm3, self.wm3Core] = self.rewireMask(self.w3[0], self.noPar3, self.wm3, {"layer": "layer_3", "self" : self})
+                self.wm1, self.wm1Core = self.rewireMask(self.w1[0], self.noPar1, self.wm1, {"layer": "layer_1", "self": self})
+                self.wm2, self.wm2Core = self.rewireMask(self.w2[0], self.noPar2, self.wm2, {"layer": "layer_2", "self": self})
+                self.wm3, self.wm3Core = self.rewireMask(self.w3[0], self.noPar3, self.wm3, {"layer": "layer_3", "self": self})
+
+            case "NeuronEMASet":
+                self.wm1, self.wm1Core = self.rewireMask(self.w1[0], self.noPar1, self.wm1, {"layer": "layer_1", "self": self})
+                self.wm2, self.wm2Core = self.rewireMask(self.w2[0], self.noPar2, self.wm2, {"layer": "layer_2", "self": self})
+                self.wm3, self.wm3Core = self.rewireMask(self.w3[0], self.noPar3, self.wm3, {"layer": "layer_3", "self": self})
+
+            case "FisherDiagonalSkipSET":
+                if fisher_payload is None:
+                    raise ValueError("FisherDiagonalSkipSET requires fisher_payload.")
+
+                g1, g2, gskip, g3 = fisher_payload["grads"]
+                v1, v2, vskip, v3 = fisher_payload["Vs"]
+
+                # W1 and W3: normal fisher prune+grow
+                self.wm1, self.wm1Core = self.rewireMask(self.w1[0], self.noPar1, self.wm1, fisher_v=v1, fisher_g=g1)
+                self.wm3, self.wm3Core = self.rewireMask(self.w3[0], self.noPar3, self.wm3, fisher_v=v3, fisher_g=g3)
+
+                # W2 vs skip: choose regrowth globally
+                self.wm2, self.wm2Core, self.wmSkip02, self.wmSkip02Core = self.fisher_choose_between_W2_and_skip(
+                    W2=self.w2[0], K2=self.noPar2, M2=self.wm2, g2=g2, v2=v2,
+                    Wskip=self.wSkip02[0], Kskip=self.noParSkip02, Mskip=self.wmSkip02, gskip=gskip, vskip=vskip
+                )
+
             case _:
                 raise NotImplementedError(f"Strategy {self.strategy.__class__.__name__} not implemented")
 
+        # apply core masks
         self.w1[0] = self.w1[0] * self.wm1Core
         self.w2[0] = self.w2[0] * self.wm2Core
         self.w3[0] = self.w3[0] * self.wm3Core
-        
-    def train(self, target_accuracy=1.0):
 
-        # read CIFAR10 data
+        if use_skip:
+            self.wSkip02[0] = self.wSkip02[0] * self.wmSkip02Core
+
+            S
+    # train
+    def train(self, target_accuracy=1.0):
         [x_train, x_test, y_train, y_test] = self.read_data()
 
-        #data augmentation
+        # keep this for EMA strategy
+        self._ema_x_train = x_train
+
         datagen = ImageDataGenerator(
-            featurewise_center=False,  # set input mean to 0 over the dataset
-            samplewise_center=False,  # set each sample mean to 0
-            featurewise_std_normalization=
-            False,  # divide inputs by std of the dataset
-            samplewise_std_normalization=False,  # divide each input by its std
-            zca_whitening=False,  # apply ZCA whitening
-            rotation_range=
-            10,  # randomly rotate images in the range (degrees, 0 to 180)
-            width_shift_range=
-            0.1,  # randomly shift images horizontally (fraction of total width)
-            height_shift_range=
-            0.1,  # randomly shift images vertically (fraction of total height)
-            horizontal_flip=True,  # randomly flip images
-            vertical_flip=False)  # randomly flip images
+            featurewise_center=False,
+            samplewise_center=False,
+            featurewise_std_normalization=False,
+            samplewise_std_normalization=False,
+            zca_whitening=False,
+            rotation_range=10,
+            width_shift_range=0.1,
+            height_shift_range=0.1,
+            horizontal_flip=True,
+            vertical_flip=False
+        )
         datagen.fit(x_train)
 
         self.model.summary()
 
-        # training process in a for loop
         self.accuracies_per_epoch = []
         epoch_count = -1
         best_accuracy = 0.0
 
-        sgd = optimizers.SGD(learning_rate=self.learning_rate,
-                        momentum=self.momentum)
-        self.model.compile(loss='categorical_crossentropy',
-                    optimizer=sgd,
-                    metrics=['accuracy'])
+        sgd = optimizers.SGD(learning_rate=self.learning_rate, momentum=self.momentum)
+        self.model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=['accuracy'])
+
+        # init V for fisher strategy (strategy owns v arrays)
+        if isinstance(self.strategy, FisherDiagonalSkipSET):
+            self.strategy.v1 = np.zeros_like(self.wm1, dtype=np.float32)
+            self.strategy.v2 = np.zeros_like(self.wm2, dtype=np.float32)
+            self.strategy.v3 = np.zeros_like(self.wm3, dtype=np.float32)
+            self.strategy.vSkip02 = np.zeros_like(self.wmSkip02, dtype=np.float32)
 
         for epoch in range(0, self.maxepoches):
-
             historytemp = self.model.fit(
                 datagen.flow(x_train, y_train, batch_size=self.batch_size),
                 steps_per_epoch=x_train.shape[0] // self.batch_size,
                 epochs=epoch,
                 validation_data=(x_test, y_test),
-                initial_epoch=epoch - 1)
+                initial_epoch=epoch - 1
+            )
 
             accuracy = historytemp.history['val_accuracy'][0]
-            if accuracy > best_accuracy:
-                best_accuracy = accuracy
+            best_accuracy = max(best_accuracy, accuracy)
             self.accuracies_per_epoch.append(accuracy)
 
             if accuracy >= target_accuracy:
                 epoch_count = epoch
                 break
 
-            #ugly hack to avoid tensorflow memory increase for multiple fit_generator calls. Theano shall work more nicely this but it is outdated in general
-            self.weightsEvolution()
-            # K.clear_session()
-            # self.create_model()
-            self._restore_previous_weights()
+            fisher_payload = None
+
+            if isinstance(self.strategy, FisherDiagonalSkipSET):
+                bs = 256
+                grads = self.compute_kernel_grads(x_train[:bs], y_train[:bs])
+                g1, g2, gskip, g3 = grads
+
+                b = self.strategy.beta
+                self.strategy.v1 = b * self.strategy.v1 + (1.0 - b) * (g1.astype(np.float32) ** 2)
+                self.strategy.v2 = b * self.strategy.v2 + (1.0 - b) * (g2.astype(np.float32) ** 2)
+                self.strategy.vSkip02 = b * self.strategy.vSkip02 + (1.0 - b) * (gskip.astype(np.float32) ** 2)
+                self.strategy.v3 = b * self.strategy.v3 + (1.0 - b) * (g3.astype(np.float32) ** 2)
+
+                fisher_payload = {
+                    "grads": (g1, g2, gskip, g3),
+                    "Vs": (self.strategy.v1, self.strategy.v2, self.strategy.vSkip02, self.strategy.v3)
+                }
+
+            self.weightsEvolution(fisher_payload=fisher_payload)
+
+            # masks are captured at layer build time -> fisher must rebuild model
+            if isinstance(self.strategy, FisherDiagonalSkipSET):
+                K.clear_session()
+                self.create_model()
+            else:
+                self._restore_previous_weights()
 
         self.accuracies_per_epoch = np.asarray(self.accuracies_per_epoch)
         return epoch_count, best_accuracy
 
     def read_data(self):
-
-        #read CIFAR10 data
         (x_train, y_train), (x_test, y_test) = cifar10.load_data()
         y_train = to_categorical(y_train, self.num_classes)
         y_test = to_categorical(y_test, self.num_classes)
         x_train = x_train.astype('float32')
         x_test = x_test.astype('float32')
 
-        #normalize data
         xTrainMean = np.mean(x_train, axis=0)
         xTtrainStd = np.std(x_train, axis=0)
         x_train = (x_train - xTrainMean) / xTtrainStd
         x_test = (x_test - xTrainMean) / xTtrainStd
 
         return [x_train, x_test, y_train, y_test]
-
-
-if __name__ == '__main__':
-    set_strategy = RandomSET()
-
-    # create and run a SET-MLP model on CIFAR10
-    model = SET_MLP_CIFAR10(set_strategy, max_epochs=60)
-
-    # train the SET-MLP model until 40%
-    epoch_count = model.train(target_accuracy=0.4)
-    print(f"took {epoch_count} epochs until convergance")
-
-    # save accuracies over for all training epochs
-    # in "results" folder you can find the output of running this file
-    np.savetxt("results/set_mlp_srelu_sgd_cifar10_acc.txt",
-               np.asarray(model.accuracies_per_epoch))
