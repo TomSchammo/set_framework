@@ -427,6 +427,8 @@ class SET_MLP_CIFAR10:
             if isinstance(self.strategy, FisherDiagonalSkipSET):
                 K.clear_session()
                 self.create_model()
+                sgd = optimizers.SGD(learning_rate=self.learning_rate, momentum=self.momentum)
+                self.model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=['accuracy'])
             else:
                 self._restore_previous_weights()
 
