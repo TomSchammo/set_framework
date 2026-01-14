@@ -217,7 +217,7 @@ class SET_MLP_CIFAR10:
                 [self.wm1, self.wm1Core] = self.rewireMask(self.w1[0], self.noPar1, self.wm1)
                 [self.wm2, self.wm2Core] = self.rewireMask(self.w2[0], self.noPar2, self.wm2)
                 [self.wm3, self.wm3Core] = self.rewireMask(self.w3[0], self.noPar3, self.wm3)
-            case "NeuronCentrality":
+            case "NeuronCentralitySET":
                 [self.wm1, self.wm1Core] = self.rewireMask(self.w1[0], self.noPar1, self.wm1, {"layer": "layer_1", "self" : self})
                 [self.wm2, self.wm2Core] = self.rewireMask(self.w2[0], self.noPar2, self.wm2, {"layer": "layer_2", "self" : self})
                 [self.wm3, self.wm3Core] = self.rewireMask(self.w3[0], self.noPar3, self.wm3, {"layer": "layer_3", "self" : self})
