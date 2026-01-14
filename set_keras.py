@@ -348,7 +348,7 @@ class SET_MLP_CIFAR10:
         if use_skip:
             self.wSkip02[0] = self.wSkip02[0] * self.wmSkip02Core
 
-            S
+            
     # train
     def train(self, target_accuracy=1.0):
         [x_train, x_test, y_train, y_test] = self.read_data()
