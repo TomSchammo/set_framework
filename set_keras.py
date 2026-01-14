@@ -61,8 +61,8 @@ from keras.constraints import Constraint
 # strategies live in their own files
 from strategies.random_set import RandomSET
 from strategies.neuron_centrality import NeuronCentralitySET
-from strategies.ema import NeuronEMASet
 from strategies.fisher_diagonal_skip_set import FisherDiagonalSkipSET
+from strategies.ema import NeuronEMASet
 
 
 class MaskWeights(Constraint):

@@ -1,10 +1,11 @@
-from strategies.random_set import RandomSET
-from strategies.neuron_centrality import NeuronCentralitySET
 from set_keras import SET_MLP_CIFAR10
 
 from argparse import ArgumentParser
-from strategies.ema import NeuronEMASet
+
 from strategies.fisher_diagonal_skip_set import FisherDiagonalSkipSET
+from strategies.ema import NeuronEMASet
+from strategies.random_set import RandomSET
+from strategies.neuron_centrality import NeuronCentralitySET
 
 import tensorflow as tf
 
@@ -68,7 +69,9 @@ def main():
             [tf.config.LogicalDeviceConfiguration(memory_limit=10240)]
         )
 
-    #strategies = [NeuronCentralitySET()]
+    # strategies = [NeuronEMASet()]
+    # strategies = [RandomSET()]
+    # strategies = [NeuronCentralitySET()]
     strategies = [FisherDiagonalSkipSET()]
 
     models = [SET_MLP_CIFAR10]
@@ -90,7 +93,12 @@ def main():
                 )
                 results.append(
                     (f"{strategy.__class__.__name__}", best_accuracy * 100))
-
+                
+            # Write each epoch to csv file
+            with open(f"results_{strategy.__class__.__name__}.csv", "w") as f:
+                f.write("epoch,accuracy\n")
+                for i, acc in enumerate(model.accuracies_per_epoch):
+                    f.write(f"{i+1},{acc}\n")
 
 # Pretty print results in a table
     print("\n" + "=" * 60)
