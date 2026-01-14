@@ -221,9 +221,13 @@ class SET_MLP_CIFAR10:
                 [self.wm1, self.wm1Core] = self.rewireMask(self.w1[0], self.noPar1, self.wm1, {"layer": "layer_1", "self" : self})
                 [self.wm2, self.wm2Core] = self.rewireMask(self.w2[0], self.noPar2, self.wm2, {"layer": "layer_2", "self" : self})
                 [self.wm3, self.wm3Core] = self.rewireMask(self.w3[0], self.noPar3, self.wm3, {"layer": "layer_3", "self" : self})
+            case "NeuronEMASet":
+                [self.wm1, self.wm1Core] = self.rewireMask(self.w1[0], self.noPar1, self.wm1, {"layer": "layer_1", "self": self})
+                [self.wm2, self.wm2Core] = self.rewireMask(self.w2[0], self.noPar2, self.wm2, {"layer": "layer_2", "self": self})
+                [self.wm3, self.wm3Core] = self.rewireMask(self.w3[0], self.noPar3, self.wm3, {"layer": "layer_3", "self": self})
             case _:
                 raise NotImplementedError(f"Strategy {self.strategy.__class__.__name__} not implemented")
-
+            
         self.w1[0] = self.w1[0] * self.wm1Core
         self.w2[0] = self.w2[0] * self.wm2Core
         self.w3[0] = self.w3[0] * self.wm3Core
@@ -232,6 +236,9 @@ class SET_MLP_CIFAR10:
 
         # read CIFAR10 data
         [x_train, x_test, y_train, y_test] = self.read_data()
+
+        #i added this bcs i need to sample the batches
+        self._ema_x_train = x_train
 
         #data augmentation
         datagen = ImageDataGenerator(

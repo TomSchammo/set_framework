@@ -3,7 +3,7 @@ from strategies.neuron_centrality import NeuronCentralitySET
 from set_keras import SET_MLP_CIFAR10
 
 from argparse import ArgumentParser
-
+from strategies.ema import NeuronEMASet
 import tensorflow as tf
 
 parser = ArgumentParser(add_help=False)
@@ -66,7 +66,8 @@ def main():
             [tf.config.LogicalDeviceConfiguration(memory_limit=10240)]
         )
 
-    strategies = [NeuronCentralitySET()]
+    #strategies = [NeuronCentralitySET()]
+    strategies = [NeuronEMASet()]
 
     models = [SET_MLP_CIFAR10]
 
