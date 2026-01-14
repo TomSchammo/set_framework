@@ -3,6 +3,8 @@ from strategies.neuron_centrality import NeuronCentralitySET
 from set_keras import SET_MLP_CIFAR10
 
 from argparse import ArgumentParser
+from strategies.ema import NeuronEMASet
+from strategies.fisher_diagonal_skip_set import FisherDiagonalSkipSET
 
 import tensorflow as tf
 
@@ -66,7 +68,8 @@ def main():
             [tf.config.LogicalDeviceConfiguration(memory_limit=10240)]
         )
 
-    strategies = [NeuronCentralitySET()]
+    #strategies = [NeuronCentralitySET()]
+    strategies = [FisherDiagonalSkipSET()]
 
     models = [SET_MLP_CIFAR10]
 
