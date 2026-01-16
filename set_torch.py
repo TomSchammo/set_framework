@@ -213,49 +213,6 @@ class SET_MLP_CIFAR10():
                 w *= core.reshape(w.shape)
                 setattr(self, f'w{i}', w)
 
-        # match self.strategy.__class__.__name__:
-        #     case "RandomSET":
-        #         [self.weight_mask1,
-        #          wm1Core] = self.rewire_mask(self.w1, self.parameter_count1,
-        #                                      self.weight_mask1)
-        #         [self.weight_mask2,
-        #          wm2Core] = self.rewire_mask(self.w2, self.parameter_count2,
-        #                                      self.weight_mask2)
-        #         [self.weight_mask3,
-        #          wm3Core] = self.rewire_mask(self.w3, self.parameter_count3,
-        #                                      self.weight_mask3)
-        #     case "NeuronCentrality":
-        #         [wm1, wm1Core] = self.rewire_mask(w1, self.mask1, self.wm1, {
-        #             "layer": "layer_1",
-        #             "self": self
-        #         })
-        #         [wm2, wm2Core] = self.rewire_mask(w2, self.mask2, self.wm2, {
-        #             "layer": "layer_2",
-        #             "self": self
-        #         })
-        #         [wm3, wm3Core] = self.rewire_mask(w3, self.mask3, self.wm3, {
-        #             "layer": "layer_3",
-        #             "self": self
-        #         })
-        #     case _:
-        #         raise NotImplementedError(
-        #             f"Strategy {self.strategy.__class__.__name__} not implemented"
-        #         )
-
-        # self.w1 *= wm1Core
-        # self.w2 *= wm2Core
-        # self.w3 *= wm3Core
-
-        # with torch.no_grad():
-        #     self.model.sparse1.layer.weight = self.w1
-        #     self.model.sparse2.layer.weight = self.w2
-        #     self.model.sparse3.layer.weight = self.w3
-        #     self.model.classifier.layer.weight = self.w4
-        #
-        #     self.model.sparse1.activation.weight = self.wSRelu1
-        #     self.model.sparse2.activation.weight = self.wSRelu2
-        #     self.model.sparse3.activation.weight = self.wSRelu3
-
     def _setup_training_data(self):
         temp_dataset = datasets.CIFAR10(root='./data',
                                         train=True,
