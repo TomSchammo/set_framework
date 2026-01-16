@@ -1,6 +1,6 @@
 from strategies.random_set import RandomSET
-from strategies.neuron_centrality import NeuronCentralitySET
-from set_keras import SET_MLP_CIFAR10
+# from strategies.neuron_centrality import NeuronCentralitySET
+from set_torch import SET_MLP_CIFAR10
 
 from argparse import ArgumentParser
 
@@ -66,7 +66,7 @@ def main():
             [tf.config.LogicalDeviceConfiguration(memory_limit=10240)]
         )
 
-    strategies = [NeuronCentralitySET()]
+    strategies = [RandomSET()]
 
     models = [SET_MLP_CIFAR10]
 
@@ -76,17 +76,18 @@ def main():
         for strategy in strategies:
             model = model_cls(strategy=strategy, max_epochs=max_epochs)
 
-            epoch_count, best_accuracy = model.train(
-                target_accuracy=target_accuracy)
+            history = model.train(target_accuracy=target_accuracy)
             if args.time:
-                print(f"took {epoch_count} epochs until convergance")
-                results.append((f"{strategy.__class__.__name__}", epoch_count))
+                print(
+                    f"took {history['epoch_count']} epochs until convergance")
+                results.append(
+                    (f"{strategy.__class__.__name__}", history['epoch_count']))
             else:
                 print(
-                    f"Reached {best_accuracy*100}% accuracy after {max_epochs} epochs"
+                    f"Reached {history['best_accuracy']*100}% accuracy after {max_epochs} epochs"
                 )
-                results.append(
-                    (f"{strategy.__class__.__name__}", best_accuracy * 100))
+                results.append((f"{strategy.__class__.__name__}",
+                                history['best_accuracy'] * 100))
 
 
 # Pretty print results in a table
