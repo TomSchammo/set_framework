@@ -151,6 +151,30 @@ class SET_MLP_CIFAR10():
         return (torch.from_numpy(rewired_mask).float().to(self.device),
                 torch.from_numpy(pruned_original_mask).float().to(self.device))
 
+    def rewire_mask_gpu(self,
+                        weights: torch.Tensor,
+                        no_weights,
+                        mask: torch.Tensor,
+                        extra_info=None) -> Tuple[torch.Tensor, torch.Tensor]:
+        keep_mask: torch.Tensor = self.strategy.prune_neurons_gpu(
+            weights, mask)
+        rewired_mask: torch.Tensor = keep_mask.reshape(
+            weights.shape)  #.float() TODO: idk if float call is necessary here
+        pruned_original_mask: torch.Tensor = rewired_mask.clone()
+
+        occupied = (rewired_mask == 1).nonzero()
+        no_rewires = int(no_weights - rewired_mask.sum().item())
+        new_positions = self.strategy.regrow_neurons_gpu(
+            no_rewires, weights.shape, occupied, extra_info)
+
+        # i = 0
+        # while i < new_positions.size(0):
+        #     rewired_mask[new_positions[i][0], new_positions[i][1]] = 1
+
+        rewired_mask[new_positions[:, 0], new_positions[:, 1]] = 1
+
+        return (rewired_mask, pruned_original_mask)
+
     def weights_evolution(self):
         self.w1 = self.model.sparse1.layer.weight
         self.w2 = self.model.sparse2.layer.weight
@@ -173,6 +197,8 @@ class SET_MLP_CIFAR10():
                 case "RandomSET":
                     new_mask, core = self.rewire_mask(w_cpu, param_count,
                                                       mask_cpu)
+                    # new_mask, core = self.rewire_mask_gpu(
+                    #     w, param_count, weight_mask)
                 # case "NeuronCentrality":
                 #     new_mask, core = self.rewire_mask(w_cpu, param_count, mask_cpu, {})
 
