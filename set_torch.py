@@ -298,6 +298,8 @@ class SET_MLP_CIFAR10():
             f"starting training for max {self.max_epoches} epochs ({target_accuracy=})"
         )
 
+        mem_used = 0
+        mem_cached = 0
         for epoch in range(self.max_epoches):
             self.model.train()
             train_loss = 0
@@ -334,6 +336,25 @@ class SET_MLP_CIFAR10():
             print(
                 f'Epoch {epoch+1:3d}/{self.max_epoches} | Loss: {train_loss:.3f} | Acc: {test_acc:.2f} | Best: {best_acc:.2f}'
             )
+
+            if epoch == 0 or epoch % 10 == 0:
+                tmp = torch.mps.current_allocated_memory()
+                tmp2 = torch.mps.driver_allocated_memory()
+
+                if mem_used == 0:
+                    mem_used = tmp
+                    mem_cached = tmp2
+                else:
+                    if tmp > mem_used:
+                        print(
+                            f"memory usage has grown from: {mem_used} to {tmp} after {epoch} epochs!"
+                        )
+                        mem_used = tmp
+                    if tmp2 > mem_cached:
+                        print(
+                            f"memory cache has grown from: {mem_cached} to {tmp2} after {epoch} epochs!"
+                        )
+                        mem_cached = tmp2
 
             if test_acc >= target_accuracy:
                 print(f"reached target accuracy ({target_accuracy})!")
