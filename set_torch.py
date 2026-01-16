@@ -145,7 +145,8 @@ class SET_MLP_CIFAR10():
         new_positions = self.strategy.regrow_neurons(noRewires, weights.shape,
                                                      occupied, extra_info)
 
-        rewired_mask[new_positions[:, 0], new_positions[:, 1]] = 1
+        for i, j in new_positions:
+            rewired_mask[i, j] = 1
 
         return (torch.from_numpy(rewired_mask).float().to(self.device),
                 torch.from_numpy(pruned_original_mask).float().to(self.device))
