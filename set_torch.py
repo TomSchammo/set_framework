@@ -145,8 +145,7 @@ class SET_MLP_CIFAR10():
         new_positions = self.strategy.regrow_neurons(noRewires, weights.shape,
                                                      occupied, extra_info)
 
-        for i, j in new_positions:
-            rewired_mask[i, j] = 1
+        rewired_mask[new_positions[:, 0], new_positions[:, 1]] = 1
 
         return (torch.from_numpy(rewired_mask).float().to(self.device),
                 torch.from_numpy(pruned_original_mask).float().to(self.device))
@@ -303,7 +302,6 @@ class SET_MLP_CIFAR10():
         best_acc = 0
         history = {
             'train_loss': [],
-            'test_loss': [],
             'train_acc': [],
             'test_acc': [],
             'epoch_count': 0,
@@ -349,7 +347,7 @@ class SET_MLP_CIFAR10():
                 best_acc = test_acc
 
             print(
-                f'Epoch {epoch+1:3d}/{self.max_epoches} | Loss: {train_loss:.3f} | Acc: {test_acc:.2f}% | Best: {best_acc:.2f}%'
+                f'Epoch {epoch+1:3d}/{self.max_epoches} | Loss: {train_loss:.3f} | Acc: {test_acc:.2f} | Best: {best_acc:.2f}'
             )
 
             if test_acc >= target_accuracy:
