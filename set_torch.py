@@ -289,6 +289,7 @@ class SET_MLP_CIFAR10():
             'train_acc': [],
             'test_acc': [],
             'epoch_count': 0,
+            'best_accuracy': 0,
         }
 
         self.model.to(self.device)
@@ -341,6 +342,7 @@ class SET_MLP_CIFAR10():
 
             self.weights_evolution()
 
+        history['best_accuracy'] = best_acc
         return history
 
 
