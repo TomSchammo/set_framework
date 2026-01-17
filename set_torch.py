@@ -76,7 +76,7 @@ def create_weights_mask(epsilon, no_rows, no_cols):
         no_rows * no_cols)  # normal tp have 8x connections
     mask_weights[mask_weights < prob] = 0
     mask_weights[mask_weights >= prob] = 1
-    parameter_count = torch.sum(mask_weights)
+    parameter_count = torch.sum(mask_weights).detach().item()
     print("Create Sparse Matrix: No parameters, NoRows, NoCols ",
           parameter_count, no_rows, no_cols)
     return [parameter_count, mask_weights]
