@@ -140,8 +140,13 @@ class SET_MLP_CIFAR10():
                     mask: np.ndarray,
                     extra_info=None) -> Tuple[torch.Tensor, torch.Tensor]:
 
+        # transpose because torch has a different format than keras
+        weights = weights.T
+        mask = mask.T
+
         # remove zeta largest negative and smallest positive weights
-        keep_mask: np.ndarray = self.strategy.prune_neurons(weights, mask)
+        keep_mask: np.ndarray = self.strategy.prune_neurons(
+            weights.ravel(), mask.ravel())
         rewired_mask: np.ndarray = keep_mask.reshape(
             weights.shape).astype(float)
         pruned_original_mask: np.ndarray = rewired_mask.copy()
@@ -199,8 +204,8 @@ class SET_MLP_CIFAR10():
             w: torch.Tensor = getattr(self, f'w{i}')
             param_count = getattr(self, f'parameter_count{i}')
 
-            w_cpu = w.detach().cpu().numpy().flatten()
-            mask_cpu = weight_mask.detach().cpu().numpy().flatten()
+            w_cpu = w.detach().cpu().numpy()
+            mask_cpu = weight_mask.detach().cpu().numpy()
 
             match self.strategy.__class__.__name__:
                 case "RandomSET":
