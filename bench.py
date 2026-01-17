@@ -1,6 +1,7 @@
 from strategies.random_set import RandomSET
 from strategies.neuron_centrality import NeuronCentralitySET
 from set_keras import SET_MLP_CIFAR10
+import numpy as np
 
 from argparse import ArgumentParser
 
@@ -12,6 +13,7 @@ parser.add_argument('--max_epochs', type=int, required=False)
 parser.add_argument('--accuracy', action="store_true", required=False)
 parser.add_argument('--time', action="store_true", required=False)
 parser.add_argument('--help', action="store_true", required=False)
+parser.add_argument('--seed', type=int, required=False)
 
 
 def print_help():
@@ -23,6 +25,7 @@ Options:
   --accuracy               Benchmark accuracy achieved after a fixed amount of epochs.
   --time                   Benchmark how many epochs are needed to achieve a target accuracy (must provide --target_accuracy).
   --target_accuracy <X>    Target accuracy to reach for convergence time benchmarking. Required with --time.
+  --seed <N>               Enter a custom seed to be used during training.
   --help                   Show this help message and exit.
 """)
 
@@ -54,6 +57,9 @@ def main():
 
     target_accuracy = 1.0 if args.accuracy else args.target_accuracy
     max_epochs = args.max_epochs
+
+    if args.seed:
+        np.random.seed(int(args.seed))
 
     gpus = tf.config.list_physical_devices("GPU")
     if gpus:
