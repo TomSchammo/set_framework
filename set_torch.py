@@ -128,6 +128,12 @@ class SET_MLP_CIFAR10():
             self.model.sparse2.layer.weight *= self.weight_mask2
             self.model.sparse3.layer.weight *= self.weight_mask3
 
+    def force_mask(self):
+        with torch.no_grad():
+            self.model.sparse1.layer.weight.data *= self.weight_mask1
+            self.model.sparse2.layer.weight.data *= self.weight_mask2
+            self.model.sparse3.layer.weight.data *= self.weight_mask3
+
     def rewire_mask(self,
                     weights: np.ndarray,
                     noWeights,
@@ -297,6 +303,13 @@ class SET_MLP_CIFAR10():
 
         self.model.to(self.device)
 
+        self.weight_mask1 = self.weight_mask1.to(self.device)
+        self.weight_mask2 = self.weight_mask2.to(self.device)
+        self.weight_mask3 = self.weight_mask3.to(self.device)
+
+        # Re-apply mask after moving to device to ensure initial state is sparse
+        self.force_mask()
+
         print(
             f"starting training for max {self.max_epoches} epochs ({target_accuracy=})"
         )
@@ -318,6 +331,7 @@ class SET_MLP_CIFAR10():
                 loss = criterion(outputs, labels)
                 loss.backward()
                 optimizer.step()
+                self.force_mask()
 
                 train_loss += loss.item()
                 _, predicted = outputs.max(1)
