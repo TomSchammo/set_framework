@@ -284,7 +284,7 @@ class SET_MLP_CIFAR10():
                 _, predicted = outputs.max(1)
 
                 total += labels.size(0)
-                correct += predicted.eq(labels).sum().item()
+                correct += predicted.eq(labels).sum().detach().item()
 
         accuracy = correct / total
         return accuracy
@@ -338,10 +338,10 @@ class SET_MLP_CIFAR10():
                 optimizer.step()
                 self.force_mask()
 
-                train_loss += loss.item()
+                train_loss += loss.detach().item()
                 _, predicted = outputs.max(1)
                 train_total += images.size(0)
-                train_correct += predicted.eq(labels).sum().item()
+                train_correct += predicted.eq(labels).sum().detach().item()
                 batch_num += 1
 
             train_acc = train_correct / train_total
