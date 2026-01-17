@@ -142,6 +142,9 @@ class SET_MLP_CIFAR10():
 
         occupied = set(zip(*np.where(rewired_mask == 1)))
         noRewires = int(noWeights - np.sum(rewired_mask))
+
+        assert noRewires > 0, "If no weights are to be rewired, then there probably is a bug in the code"
+
         new_positions = self.strategy.regrow_neurons(noRewires, weights.shape,
                                                      occupied, extra_info)
 
