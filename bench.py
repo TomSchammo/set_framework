@@ -69,8 +69,7 @@ def main():
         # Limit GPU:0 to 10 GiB (10240 MiB)
         tf.config.set_logical_device_configuration(
             gpus[0],
-            [tf.config.LogicalDeviceConfiguration(memory_limit=10240)]
-        )
+            [tf.config.LogicalDeviceConfiguration(memory_limit=10240)])
 
     strategies = [NeuronCentralitySET()]
 

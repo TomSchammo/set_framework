@@ -173,7 +173,7 @@ class SET_MLP_CIFAR10:
         maybe_set("srelu3", self.wSRelu3)
         maybe_set("dense_4", self.w4)
 
-    def rewireMask(self, weights, noWeights, mask, extra_info = None):
+    def rewireMask(self, weights, noWeights, mask, extra_info=None):
 
         # remove zeta largest negative and smallest positive weights
         keep_mask = self.strategy.prune_neurons(weights.ravel(), mask.ravel())
@@ -217,20 +217,43 @@ class SET_MLP_CIFAR10:
 
         match self.strategy.__class__.__name__:
             case "RandomSET":
-                [self.wm1, self.wm1Core] = self.rewireMask(self.w1[0], self.noPar1, self.wm1)
-                [self.wm2, self.wm2Core] = self.rewireMask(self.w2[0], self.noPar2, self.wm2)
-                [self.wm3, self.wm3Core] = self.rewireMask(self.w3[0], self.noPar3, self.wm3)
+                [self.wm1,
+                 self.wm1Core] = self.rewireMask(self.w1[0], self.noPar1,
+                                                 self.wm1)
+                [self.wm2,
+                 self.wm2Core] = self.rewireMask(self.w2[0], self.noPar2,
+                                                 self.wm2)
+                [self.wm3,
+                 self.wm3Core] = self.rewireMask(self.w3[0], self.noPar3,
+                                                 self.wm3)
             case "NeuronCentralitySET":
-                [self.wm1, self.wm1Core] = self.rewireMask(self.w1[0], self.noPar1, self.wm1, {"layer": "layer_1", "self" : self})
-                [self.wm2, self.wm2Core] = self.rewireMask(self.w2[0], self.noPar2, self.wm2, {"layer": "layer_2", "self" : self})
-                [self.wm3, self.wm3Core] = self.rewireMask(self.w3[0], self.noPar3, self.wm3, {"layer": "layer_3", "self" : self})
+                [self.wm1,
+                 self.wm1Core] = self.rewireMask(self.w1[0], self.noPar1,
+                                                 self.wm1, {
+                                                     "layer": "layer_1",
+                                                     "self": self
+                                                 })
+                [self.wm2,
+                 self.wm2Core] = self.rewireMask(self.w2[0], self.noPar2,
+                                                 self.wm2, {
+                                                     "layer": "layer_2",
+                                                     "self": self
+                                                 })
+                [self.wm3,
+                 self.wm3Core] = self.rewireMask(self.w3[0], self.noPar3,
+                                                 self.wm3, {
+                                                     "layer": "layer_3",
+                                                     "self": self
+                                                 })
             case _:
-                raise NotImplementedError(f"Strategy {self.strategy.__class__.__name__} not implemented")
+                raise NotImplementedError(
+                    f"Strategy {self.strategy.__class__.__name__} not implemented"
+                )
 
         self.w1[0] = self.w1[0] * self.wm1Core
         self.w2[0] = self.w2[0] * self.wm2Core
         self.w3[0] = self.w3[0] * self.wm3Core
-        
+
     def train(self, target_accuracy=1.0):
 
         # read CIFAR10 data
@@ -262,10 +285,10 @@ class SET_MLP_CIFAR10:
         best_accuracy = 0.0
 
         sgd = optimizers.SGD(learning_rate=self.learning_rate,
-                        momentum=self.momentum)
+                             momentum=self.momentum)
         self.model.compile(loss='categorical_crossentropy',
-                    optimizer=sgd,
-                    metrics=['accuracy'])
+                           optimizer=sgd,
+                           metrics=['accuracy'])
 
         for epoch in range(0, self.maxepoches):
 
