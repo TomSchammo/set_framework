@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Tuple, Optional, Set, List
+from typing import Tuple, Optional
 
 from .base_strategy import BaseSETStrategy
 
