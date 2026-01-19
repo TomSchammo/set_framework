@@ -11,6 +11,7 @@ class BaseSETStrategy(ABC):
 
     @abstractmethod
     def prune_neurons(self,
+                      mask_buffer: np.ndarray,
                       weight_values: np.ndarray,
                       weight_positions: Optional[np.ndarray] = None,
                       extra_info: Optional[dict] = None) -> np.ndarray:
@@ -28,12 +29,11 @@ class BaseSETStrategy(ABC):
         pass
 
     @abstractmethod
-    def regrow_neurons(
-            self,
-            num_to_add: int,
-            dimensions: Tuple[int, int],
-            existing_positions: Set[Tuple[int, int]],
-            extra_info: Optional[dict] = None) -> List[Tuple[int, int]]:
+    def regrow_neurons(self,
+                       num_to_add: int,
+                       dimensions: Tuple[int, int],
+                       mask: np.ndarray,
+                       extra_info: Optional[dict] = None) -> None:
         """
         Decide WHERE to add new connections.
 
