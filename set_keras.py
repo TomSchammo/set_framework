@@ -125,6 +125,15 @@ class SET_MLP_CIFAR10:
         self.wSRelu2 = None
         self.wSRelu3 = None
 
+        self.wm1_buffer = np.zeros((32 * 32 * 3, 4000), dtype=np.float32)
+        self.wm1_core_buffer = np.zeros_like(self.wm1_buffer, dtype=np.float32)
+
+        self.wm2_buffer = np.zeros((4000, 1000), dtype=np.float32)
+        self.wm2_core_buffer = np.zeros_like(self.wm2_buffer, dtype=np.float32)
+
+        self.wm3_buffer = np.zeros((1000, 4000), dtype=np.float32)
+        self.wm3_core_buffer = np.zeros_like(self.wm3_buffer, dtype=np.float32)
+
         # create a SET-MLP model
         self.create_model()
 
@@ -173,23 +182,36 @@ class SET_MLP_CIFAR10:
         maybe_set("srelu3", self.wSRelu3)
         maybe_set("dense_4", self.w4)
 
-    def rewireMask(self, weights, noWeights, mask, extra_info=None):
+    def rewireMask(self,
+                   weights,
+                   noWeights,
+                   mask,
+                   core_buffer,
+                   mask_buffer,
+                   extra_info=None):
+
+        param_id = id(mask_buffer)
 
         # remove zeta largest negative and smallest positive weights
-        keep_mask = self.strategy.prune_neurons(weights.ravel(), mask.ravel())
-        rewiredWeights = keep_mask.reshape(weights.shape).astype(float)
-        weightMaskCore = rewiredWeights.copy()
+        mask_buffer = self.strategy.prune_neurons(mask_buffer, weights.ravel(),
+                                                  mask.ravel(), extra_info)
 
-        occupied = set(zip(*np.where(rewiredWeights == 1)))
-        noRewires = int(noWeights - np.sum(rewiredWeights))
+        assert id(mask_buffer) == param_id, "Prune related in rebind"
+
+        assert mask_buffer.shape == weights.shape
+
+        np.copyto(core_buffer, mask_buffer)
+
+        # occupied = set(zip(*np.where(rewiredWeights == 1)))
+        noRewires = int(noWeights - np.sum(mask_buffer))
 
         assert noRewires > 0, "If no weights are rewired, there likely is a bug your code!"
 
-        new_positions = self.strategy.regrow_neurons(noRewires, weights.shape,
-                                                     occupied, extra_info)
+        self.strategy.regrow_neurons(noRewires, weights.shape, mask_buffer,
+                                     extra_info)
 
-        for i, j in new_positions:
-            rewiredWeights[i, j] = 1
+        # for i, j in new_positions:
+        #     rewiredWeights[i, j] = 1
 
         # noRewires = noWeights - np.sum(rewiredWeights)
         # zero_positions = np.argwhere(rewiredWeights == 0)
@@ -202,7 +224,7 @@ class SET_MLP_CIFAR10:
         #
         # rewiredWeights[positions_to_add[:, 0], positions_to_add[:, 1]] = 1
 
-        return [rewiredWeights, weightMaskCore]
+        return [mask_buffer, core_buffer]
 
     def weightsEvolution(self):
         # this represents the core of the SET procedure. It removes the weights closest to zero in each layer and add new random weights
@@ -217,42 +239,45 @@ class SET_MLP_CIFAR10:
 
         match self.strategy.__class__.__name__:
             case "RandomSET":
-                [self.wm1,
-                 self.wm1Core] = self.rewireMask(self.w1[0], self.noPar1,
-                                                 self.wm1)
-                [self.wm2,
-                 self.wm2Core] = self.rewireMask(self.w2[0], self.noPar2,
-                                                 self.wm2)
-                [self.wm3,
-                 self.wm3Core] = self.rewireMask(self.w3[0], self.noPar3,
-                                                 self.wm3)
+                [self.wm1_buffer, self.wm1_core_buffer
+                 ] = self.rewireMask(self.w1[0], self.noPar1, self.wm1,
+                                     self.wm1_core_buffer, self.wm1_buffer,
+                                     {"temp_buf": self.wm1_core_buffer})
+                [self.wm2_buffer, self.wm2_core_buffer
+                 ] = self.rewireMask(self.w2[0], self.noPar2, self.wm2,
+                                     self.wm2_core_buffer, self.wm2_buffer,
+                                     {"temp_buf": self.wm2_core_buffer})
+                [self.wm3_buffer, self.wm3_core_buffer
+                 ] = self.rewireMask(self.w3[0], self.noPar3, self.wm3,
+                                     self.wm3_core_buffer, self.wm3_buffer,
+                                     {"temp_buf": self.wm3_core_buffer})
             case "NeuronCentralitySET":
-                [self.wm1,
-                 self.wm1Core] = self.rewireMask(self.w1[0], self.noPar1,
-                                                 self.wm1, {
-                                                     "layer": "layer_1",
-                                                     "self": self
-                                                 })
-                [self.wm2,
-                 self.wm2Core] = self.rewireMask(self.w2[0], self.noPar2,
-                                                 self.wm2, {
-                                                     "layer": "layer_2",
-                                                     "self": self
-                                                 })
-                [self.wm3,
-                 self.wm3Core] = self.rewireMask(self.w3[0], self.noPar3,
-                                                 self.wm3, {
-                                                     "layer": "layer_3",
-                                                     "self": self
-                                                 })
+                [self.wm1_buffer, self.wm1_core_buffer
+                 ] = self.rewireMask(self.w1[0], self.noPar1, self.wm1,
+                                     self.wm1_core_buffer, self.wm1_buffer, {
+                                         "layer": "layer_1",
+                                         "self": self
+                                     })
+                [self.wm2_buffer, self.wm2_core_buffer
+                 ] = self.rewireMask(self.w2[0], self.noPar2, self.wm2,
+                                     self.wm2_core_buffer, self.wm2_buffer, {
+                                         "layer": "layer_2",
+                                         "self": self
+                                     })
+                [self.wm3_buffer, self.wm3_core_buffer
+                 ] = self.rewireMask(self.w3[0], self.noPar3, self.wm3,
+                                     self.wm3_core_buffer, self.wm3_buffer, {
+                                         "layer": "layer_3",
+                                         "self": self
+                                     })
             case _:
                 raise NotImplementedError(
                     f"Strategy {self.strategy.__class__.__name__} not implemented"
                 )
 
-        self.w1[0] = self.w1[0] * self.wm1Core
-        self.w2[0] = self.w2[0] * self.wm2Core
-        self.w3[0] = self.w3[0] * self.wm3Core
+        self.w1[0] = self.w1[0] * self.wm1_core_buffer
+        self.w2[0] = self.w2[0] * self.wm2_core_buffer
+        self.w3[0] = self.w3[0] * self.wm3_core_buffer
 
     def train(self, target_accuracy=1.0):
 
