@@ -20,6 +20,7 @@ class RandomSET(BaseSETStrategy):
         super().__init__(zeta)
 
     def prune_neurons(self,
+                      mask_buffer: np.ndarray,
                       weight_values: np.ndarray,
                       weight_positions: Optional[np.ndarray] = None,
                       extra_info: Optional[dict] = None) -> np.ndarray:
@@ -32,20 +33,38 @@ class RandomSET(BaseSETStrategy):
             min(values.shape[0] - 1,
                 lastZeroPos + self.zeta * (values.shape[0] - lastZeroPos)))]
 
-        return (weight_values > smallestPositive) | (weight_values
-                                                     < largestNegative)
+        pid = id(mask_buffer)
+        pid_addr = mask_buffer.__array_interface__['data'][0]
 
-    def regrow_neurons(
-            self,
-            num_to_add: int,
-            dimensions: Tuple[int, int],
-            existing_positions: Set[Tuple[int, int]],
-            extra_info: Optional[dict] = None) -> List[Tuple[int, int]]:
-        positions = []
-        while len(positions) < num_to_add:
+        mask_buffer_flat = mask_buffer.ravel()
+
+        assert pid_addr == mask_buffer_flat.__array_interface__['data'][
+            0], "flatten resulted copy"
+
+        assert extra_info
+
+        temp_buffer = extra_info['temp_buf'].ravel()
+
+        np.greater(weight_values, smallestPositive, out=mask_buffer_flat)
+        np.less(weight_values, largestNegative, out=temp_buffer)
+        np.logical_or(mask_buffer_flat, temp_buffer, out=mask_buffer_flat)
+
+        assert pid == id(
+            mask_buffer), "mask buffer has been rebound during prune"
+
+        return mask_buffer
+
+    def regrow_neurons(self,
+                       num_to_add: int,
+                       dimensions: Tuple[int, int],
+                       mask: np.ndarray,
+                       extra_info: Optional[dict] = None) -> None:
+
+        count = 0
+        while count < num_to_add:
             i = np.random.randint(0, dimensions[0])
             j = np.random.randint(0, dimensions[1])
-            if (i, j) not in existing_positions:
-                positions.append((i, j))
-                existing_positions.add((i, j))
-        return positions
+
+            if mask[i, j] == 0:
+                mask[i, j] = 1
+                count += 1
