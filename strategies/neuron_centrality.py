@@ -18,11 +18,13 @@ class NeuronCentralitySET(BaseSETStrategy):
         I0 = A.sum(axis=1)
         I0 = I0 / (I0.mean() + eps)
         return I0
-    
+
     def hidden_layer_neuron_importance(
         self,
-        W_in,  M_in=None,     # (n_cur,  n_prev)
-        W_out=None, M_out=None,  # (n_next, n_cur)
+        W_in,
+        M_in=None,  # (n_cur,  n_prev)
+        W_out=None,
+        M_out=None,  # (n_next, n_cur)
         eps=1e-12,
     ):
         W = W_in
@@ -44,19 +46,28 @@ class NeuronCentralitySET(BaseSETStrategy):
             I = incoming * outgoing
 
         I = np.clip(I.astype(np.float64), 0.0, None)
-        I = np.log1p(I) # Taming the monsters :)
+        I = np.log1p(I)  # Taming the monsters :)
         I = I / (I.mean() + eps)
 
         return I
-    
-    def prune_neurons(self, weight_values, weight_positions=None, extra_info=None):
 
-        w = np.asarray(weight_values).ravel()
+    def prune_neurons(self,
+                      mask_buffer: np.ndarray,
+                      weight_values: np.ndarray,
+                      weight_positions: Optional[np.ndarray] = None,
+                      extra_info: Optional[dict] = None) -> np.ndarray:
 
-        if weight_positions is None:
-            m = (w != 0)  # fallback
-        else:
-            m = np.asarray(weight_positions).ravel().astype(bool)
+        # w = np.asarray(weight_values).ravel()
+        w = weight_values
+
+        # NOTE: we can assume this to be the case in our code
+        assert weight_positions is not None
+
+        # if weight_positions is None:
+        #     m = (w != 0)  # fallback
+        # else:
+        # m = np.asarray(weight_positions).ravel().astype(bool)
+        m = weight_positions
 
         # shapes must match
         if m.shape != w.shape:
@@ -65,11 +76,18 @@ class NeuronCentralitySET(BaseSETStrategy):
         nz_idx = np.where(m)[0]
         n = nz_idx.size
 
+        mask_buffer_flat = mask_buffer.ravel()
+
+        assert mask_buffer.__array_interface__['data'][
+            0] == mask_buffer_flat.__array_interface__['data'][
+                0], "Unexpected copy"
+
         # Must return an array of same length as w
-        keep = m.copy()
+        np.copyto(mask_buffer_flat, m)
+        # keep = m.copy()
 
         if n == 0:
-            return keep  # all False
+            return mask_buffer  # all False
 
         # prune smallest-magnitude fraction among existing edges
         k = int(self.zeta * n)
@@ -79,56 +97,80 @@ class NeuronCentralitySET(BaseSETStrategy):
         sorted_local = np.argsort(np.abs(nz_vals))
         prune_idx = nz_idx[sorted_local[:k]]
 
-        keep[prune_idx] = False
-        return keep
-    
-    def regrow_neurons(self, num_to_add, dimensions, existing_positions, extra_info = None):
+        mask_buffer_flat[prune_idx] = 0
+        return mask_buffer
+
+    def regrow_neurons(self,
+                       num_to_add: int,
+                       dimensions: Tuple[int, int],
+                       mask: np.ndarray,
+                       extra_info: Optional[dict] = None) -> None:
+        # def regrow_neurons(self,
+        #                    num_to_add,
+        #                    dimensions,
+        #                    existing_positions,
+        #                    extra_info=None):
         n_rows, n_cols = dimensions
         k = int(num_to_add)
-        if k <= 0:
-            return []
 
-        if extra_info is None:
-            return [] # Can't regrow without importance
-        
+        assert extra_info, "Importance has to be provided for this strategy to work"
+
         ex = extra_info
 
         sf = ex["self"]
+
+        # wouldn't this be a bug?
         if sf is None:
-            return []
+            return  #[]
 
         match ex["layer"]:
             case "layer_1":
                 I_source = self.input_layer_importance(sf.w1[0], sf.wm1)
-                I_target = self.hidden_layer_neuron_importance(W_in=sf.w1[0], M_in=sf.wm1, W_out=sf.w2[0], M_out=sf.wm2)  # (4000,)
+                I_target = self.hidden_layer_neuron_importance(
+                    W_in=sf.w1[0], M_in=sf.wm1, W_out=sf.w2[0],
+                    M_out=sf.wm2)  # (4000,)
             case "layer_2":
-                I_source = self.hidden_layer_neuron_importance(W_in=sf.w1[0], M_in=sf.wm1, W_out=sf.w2[0], M_out=sf.wm2)  # (4000,)
-                I_target = self.hidden_layer_neuron_importance(W_in=sf.w2[0], M_in=sf.wm2, W_out=sf.w3[0], M_out=sf.wm3)  # (1000,)
+                I_source = self.hidden_layer_neuron_importance(
+                    W_in=sf.w1[0], M_in=sf.wm1, W_out=sf.w2[0],
+                    M_out=sf.wm2)  # (4000,)
+                I_target = self.hidden_layer_neuron_importance(
+                    W_in=sf.w2[0], M_in=sf.wm2, W_out=sf.w3[0],
+                    M_out=sf.wm3)  # (1000,)
             case "layer_3":
-                I_source = self.hidden_layer_neuron_importance(W_in=sf.w2[0], M_in=sf.wm2, W_out=sf.w3[0], M_out=sf.wm3)  # (1000,)
-                I_target = self.hidden_layer_neuron_importance(W_in=sf.w3[0], M_in=sf.wm3, W_out=sf.w4[0], M_out=None)   # (4000,)
+                I_source = self.hidden_layer_neuron_importance(
+                    W_in=sf.w2[0], M_in=sf.wm2, W_out=sf.w3[0],
+                    M_out=sf.wm3)  # (1000,)
+                I_target = self.hidden_layer_neuron_importance(
+                    W_in=sf.w3[0], M_in=sf.wm3, W_out=sf.w4[0],
+                    M_out=None)  # (4000,)
+            case _:
+                raise ValueError(f"Invalid layer '{ex['layer']}'")
 
         # Build candidate dead edges
-        zeros = [(r, c) for r in range(n_rows) for c in range(n_cols)
-                if (r, c) not in existing_positions]
+        # zeros = [(r, c) for r in range(n_rows) for c in range(n_cols)
+        #          if (r, c) not in existing_positions]
+        zeros = np.where(mask == 0)
 
         N_zero = len(zeros)
-        if N_zero == 0:
-            return []
+        assert N_zero > 0, "There should be neurons that are not connected!"
 
         k = min(k, N_zero)
-        if k <= 0:
-            return []
 
         # If importance vectors are missing or wrong size, fall back to uniform
         probs = None
         if I_target is not None and I_source is not None:
-            I_target = np.clip(np.asarray(I_target, dtype=np.float64), 0.0, None)
-            I_source = np.clip(np.asarray(I_source, dtype=np.float64), 0.0, None)
+            I_target = np.clip(np.asarray(I_target, dtype=np.float64), 0.0,
+                               None)
+            I_source = np.clip(np.asarray(I_source, dtype=np.float64), 0.0,
+                               None)
 
             if I_target.size == n_cols and I_source.size == n_rows:
-                rows = np.fromiter((p[0] for p in zeros), dtype=np.int64, count=N_zero)
-                cols = np.fromiter((p[1] for p in zeros), dtype=np.int64, count=N_zero)
+                rows = np.fromiter((p[0] for p in zeros),
+                                   dtype=np.int64,
+                                   count=N_zero)
+                cols = np.fromiter((p[1] for p in zeros),
+                                   dtype=np.int64,
+                                   count=N_zero)
 
                 # Preserve your original behavior:
                 imp_prod = I_target[cols] * I_source[rows]
@@ -143,4 +185,4 @@ class NeuronCentralitySET(BaseSETStrategy):
                     probs = scores / ssum  # else leave as None for uniform
 
         chosen = np.random.choice(N_zero, size=k, replace=False, p=probs)
-        return [zeros[idx] for idx in chosen]
+        mask[chosen] = 1
