@@ -35,6 +35,8 @@ def main():
 
     args = parser.parse_args()
 
+    run_type = None
+
     if args.help:
         print_help()
         return
@@ -44,17 +46,21 @@ def main():
     assert args.accuracy != args.time, "Expected either 'accuracy' or 'time'"
 
     if args.time:
+        run_type = "time"
         assert args.target_accuracy, "You forgot to set a target_accuracy!"
         print(
             f"\n\n---- Training until convergence to {args.target_accuracy} accuracy (max {args.max_epochs} epochs) ----\n\n"
         )
 
     if args.accuracy:
+        run_type = "accuracy"
         if args.target_accuracy:
             print(
                 f"\033[33m[Warning]: You set a target_accuracy ({args.target_accuracy}) but are not benchmarking convergance time! Target accuracy will have no effect!\033[0m"
             )
         print(f"\n\n---- Training for {args.max_epochs} epochs ----\n\n")
+
+    assert run_type is not None
 
     target_accuracy = 1.0 if args.accuracy else args.target_accuracy
     max_epochs = args.max_epochs
@@ -79,7 +85,7 @@ def main():
     results: list[tuple[str, int | float]] = []
 
     for model_cls in models:
-        save_dir = f"{model_cls.__name__.lower()}_results"
+        save_dir = f"{model_cls.__name__.lower()}_results_{run_type}"
         os.mkdir(save_dir)
         for strategy in strategies:
             model = model_cls(strategy=strategy, max_epochs=max_epochs)
