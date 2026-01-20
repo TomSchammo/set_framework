@@ -79,7 +79,7 @@ def main():
     results: list[tuple[str, int | float]] = []
 
     for model_cls in models:
-        save_dir = f"{model_cls.__class__.__name__.lower()}_results"
+        save_dir = f"{model_cls.__name__.lower()}_results"
         os.mkdir(save_dir)
         for strategy in strategies:
             model = model_cls(strategy=strategy, max_epochs=max_epochs)
