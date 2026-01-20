@@ -2,6 +2,7 @@ from strategies.random_set import RandomSET
 from strategies.neuron_centrality import NeuronCentralitySET
 from set_keras import SET_MLP_CIFAR10
 import numpy as np
+import os
 
 from argparse import ArgumentParser
 
@@ -78,11 +79,17 @@ def main():
     results: list[tuple[str, int | float]] = []
 
     for model_cls in models:
+        save_dir = f"{model_cls.__class__.__name__.lower()}_results"
+        os.mkdir(save_dir)
         for strategy in strategies:
             model = model_cls(strategy=strategy, max_epochs=max_epochs)
 
             epoch_count, best_accuracy = model.train(
                 target_accuracy=target_accuracy)
+            filename = strategy.__class__.__name__.lower()
+            np.savetxt(f"{save_dir}/{filename}.csv",
+                       np.asarray(model.accuracies_per_epoch),
+                       delimiter=';')
             if args.time:
                 print(f"took {epoch_count} epochs until convergance")
                 results.append((f"{strategy.__class__.__name__}", epoch_count))
