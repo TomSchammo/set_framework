@@ -72,7 +72,7 @@ def main():
             gpus[0],
             [tf.config.LogicalDeviceConfiguration(memory_limit=10240)])
 
-    strategies = [NeuronCentralitySET()]
+    strategies = [RandomSET(), NeuronCentralitySET()]
 
     models = [SET_MLP_CIFAR10]
 
