@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Tuple, Optional, Set, List
+from typing import Tuple, Optional
 
 from .base_strategy import BaseSETStrategy
 
@@ -57,16 +57,11 @@ class NeuronCentralitySET(BaseSETStrategy):
                       weight_positions: Optional[np.ndarray] = None,
                       extra_info: Optional[dict] = None) -> np.ndarray:
 
-        # w = np.asarray(weight_values).ravel()
         w = weight_values
 
         # NOTE: we can assume this to be the case in our code
         assert weight_positions is not None
 
-        # if weight_positions is None:
-        #     m = (w != 0)  # fallback
-        # else:
-        # m = np.asarray(weight_positions).ravel().astype(bool)
         m = weight_positions
 
         # shapes must match
@@ -84,7 +79,6 @@ class NeuronCentralitySET(BaseSETStrategy):
 
         # Must return an array of same length as w
         np.copyto(mask_buffer_flat, m)
-        # keep = m.copy()
 
         if n == 0:
             return mask_buffer  # all False
@@ -105,11 +99,6 @@ class NeuronCentralitySET(BaseSETStrategy):
                        dimensions: Tuple[int, int],
                        mask: np.ndarray,
                        extra_info: Optional[dict] = None) -> None:
-        # def regrow_neurons(self,
-        #                    num_to_add,
-        #                    dimensions,
-        #                    existing_positions,
-        #                    extra_info=None):
         n_rows, n_cols = dimensions
         k = int(num_to_add)
 
@@ -119,9 +108,9 @@ class NeuronCentralitySET(BaseSETStrategy):
 
         sf = ex["self"]
 
-        # wouldn't this be a bug?
+        # TODO: If this happens there is a bug, so we should fail with an error message
         if sf is None:
-            return  #[]
+            assert False
 
         match ex["layer"]:
             case "layer_1":
@@ -147,8 +136,6 @@ class NeuronCentralitySET(BaseSETStrategy):
                 raise ValueError(f"Invalid layer '{ex['layer']}'")
 
         # Build candidate dead edges
-        # zeros = [(r, c) for r in range(n_rows) for c in range(n_cols)
-        #          if (r, c) not in existing_positions]
         zeros = np.where(mask == 0)
 
         N_zero = len(zeros)
