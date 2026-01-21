@@ -52,6 +52,10 @@ from srelu import SReLU
 from keras.datasets import cifar10
 from keras.utils import to_categorical
 
+import tensorflow as tf
+
+AUTOTUNE = tf.data.AUTOTUNE
+
 from keras.constraints import Constraint
 
 from strategies.random_set import RandomSET
@@ -284,25 +288,41 @@ class SET_MLP_CIFAR10:
         # read CIFAR10 data
         [x_train, x_test, y_train, y_test] = self.read_data()
 
-        #data augmentation
-        datagen = ImageDataGenerator(
-            featurewise_center=False,  # set input mean to 0 over the dataset
-            samplewise_center=False,  # set each sample mean to 0
-            featurewise_std_normalization=
-            False,  # divide inputs by std of the dataset
-            samplewise_std_normalization=False,  # divide each input by its std
-            zca_whitening=False,  # apply ZCA whitening
-            rotation_range=
-            10,  # randomly rotate images in the range (degrees, 0 to 180)
-            width_shift_range=
-            0.1,  # randomly shift images horizontally (fraction of total width)
-            height_shift_range=
-            0.1,  # randomly shift images vertically (fraction of total height)
-            horizontal_flip=True,  # randomly flip images
-            vertical_flip=False)  # randomly flip images
-        datagen.fit(x_train)
+        # #data augmentation
+        # datagen = ImageDataGenerator(
+        #     featurewise_center=False,  # set input mean to 0 over the dataset
+        #     samplewise_center=False,  # set each sample mean to 0
+        #     featurewise_std_normalization=
+        #     False,  # divide inputs by std of the dataset
+        #     samplewise_std_normalization=False,  # divide each input by its std
+        #     zca_whitening=False,  # apply ZCA whitening
+        #     rotation_range=
+        #     10,  # randomly rotate images in the range (degrees, 0 to 180)
+        #     width_shift_range=
+        #     0.1,  # randomly shift images horizontally (fraction of total width)
+        #     height_shift_range=
+        #     0.1,  # randomly shift images vertically (fraction of total height)
+        #     horizontal_flip=True,  # randomly flip images
+        #     vertical_flip=False)  # randomly flip images
+        # datagen.fit(x_train)
+        
+        data_augmentation = tf.keras.Sequential([
+            tf.keras.layers.RandomFlip("horizontal"),
+            tf.keras.layers.RandomTranslation(0.1, 0.1),
+            tf.keras.layers.RandomRotation(10/360.0),  # 10 degrees
+        ], name="data_augmentation")
+
+        train_ds = tf.data.Dataset.from_tensor_slices((x_train, y_train))
+        train_ds = train_ds.shuffle(50000, reshuffle_each_iteration=True)
+        train_ds = train_ds.batch(self.batch_size)
+        train_ds = train_ds.map(lambda x, y: (data_augmentation(x, training=True), y), num_parallel_calls=AUTOTUNE)
+        train_ds = train_ds.prefetch(AUTOTUNE)
+
+        val_ds = tf.data.Dataset.from_tensor_slices((x_test, y_test))
+        val_ds = val_ds.batch(self.batch_size).prefetch(AUTOTUNE)
 
         self.model.summary()
+
 
         # training process in a for loop
         self.accuracies_per_epoch = []
@@ -318,10 +338,10 @@ class SET_MLP_CIFAR10:
         for epoch in range(0, self.maxepoches):
 
             historytemp = self.model.fit(
-                datagen.flow(x_train, y_train, batch_size=self.batch_size),
+                train_ds,
                 steps_per_epoch=x_train.shape[0] // self.batch_size,
                 epochs=epoch,
-                validation_data=(x_test, y_test),
+                validation_data=val_ds,
                 initial_epoch=epoch - 1)
 
             accuracy = historytemp.history['val_accuracy'][0]
