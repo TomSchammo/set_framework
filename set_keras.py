@@ -288,6 +288,8 @@ class SET_MLP_CIFAR10:
         # read CIFAR10 data
         [x_train, x_test, y_train, y_test] = self.read_data()
 
+        steps_per_epoch = x_train.shape[0] // self.batch_size
+
         # #data augmentation
         # datagen = ImageDataGenerator(
         #     featurewise_center=False,  # set input mean to 0 over the dataset
@@ -313,7 +315,7 @@ class SET_MLP_CIFAR10:
         ], name="data_augmentation")
 
         train_ds = tf.data.Dataset.from_tensor_slices((x_train, y_train))
-        train_ds = train_ds.shuffle(50000, reshuffle_each_iteration=True)
+        # train_ds = train_ds.shuffle(50000, reshuffle_each_iteration=True)
         train_ds = train_ds.batch(self.batch_size)
         train_ds = train_ds.map(lambda x, y: (data_augmentation(x, training=True), y), num_parallel_calls=AUTOTUNE)
         train_ds = train_ds.prefetch(AUTOTUNE)
