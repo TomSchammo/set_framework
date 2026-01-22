@@ -86,7 +86,8 @@ def main():
 
     for model_cls in models:
         save_dir = f"{model_cls.__name__.lower()}_results_{run_type}"
-        os.mkdir(save_dir)
+        from pathlib import Path
+        Path(save_dir).mkdir(exist_ok=True)
         for strategy in strategies:
             model = model_cls(strategy=strategy, max_epochs=max_epochs)
 
