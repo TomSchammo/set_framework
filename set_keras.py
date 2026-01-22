@@ -61,18 +61,46 @@ from keras.constraints import Constraint
 from strategies.random_set import RandomSET
 
 
+def zero_pattern_equal(a, b, tol=0.0):
+    """
+    Returns True if a and b have zeros at exactly the same indices.
+    tol allows treating small values as zero.
+    """
+
+    if a is None or b is None:
+        return False
+
+    a = np.asarray(a)
+    b = np.asarray(b)
+
+    if a.shape != b.shape:
+        return False
+
+    zero_a = np.abs(a) <= tol
+    zero_b = np.abs(b) <= tol
+
+    return np.array_equal(zero_a, zero_b)
+
+
+old_weights = None
+
+
 class MaskWeights(Constraint):
 
     def __init__(self, mask):
         self.mask = mask
-        self.mask = K.cast(self.mask, K.floatx())
+        self.mask_var = K.variable(self.mask, K.floatx())
 
     def __call__(self, w):
-        w *= self.mask
+        w *= self.mask_var
         return w
 
     def get_config(self):
         return {'mask': self.mask}
+
+    def update(self, mask):
+        self.mask = mask
+        K.set_value(self.mask_var, mask)
 
 
 def find_first_pos(array, value):
@@ -240,6 +268,13 @@ class SET_MLP_CIFAR10:
         self.wSRelu2 = self.model.get_layer("srelu2").get_weights()
         self.wSRelu3 = self.model.get_layer("srelu3").get_weights()
 
+        global old_weights
+
+        if old_weights is not None:
+            print(f"equal? {zero_pattern_equal(old_weights, self.w1[0])}")
+
+        old_weights = self.w1[0]
+
         match self.strategy.__class__.__name__:
             case "RandomSET":
                 [self.wm1_buffer, self.wm1_core_buffer
@@ -278,9 +313,16 @@ class SET_MLP_CIFAR10:
                     f"Strategy {self.strategy.__class__.__name__} not implemented"
                 )
 
-        self.w1[0] = self.w1[0] * self.wm1_core_buffer
-        self.w2[0] = self.w2[0] * self.wm2_core_buffer
-        self.w3[0] = self.w3[0] * self.wm3_core_buffer
+        self.w1[0] = self.w1[0] * self.wm1_buffer
+        self.w2[0] = self.w2[0] * self.wm2_buffer
+        self.w3[0] = self.w3[0] * self.wm3_buffer
+
+        self.model.get_layer("sparse_1").kernel_constraint.update(
+            self.wm1_buffer)
+        self.model.get_layer("sparse_2").kernel_constraint.update(
+            self.wm2_buffer)
+        self.model.get_layer("sparse_3").kernel_constraint.update(
+            self.wm3_buffer)
 
     def train(self, target_accuracy=1.0):
 
@@ -323,7 +365,6 @@ class SET_MLP_CIFAR10:
         val_ds = val_ds.batch(self.batch_size).prefetch(AUTOTUNE)
 
         self.model.summary()
-
 
         # training process in a for loop
         self.accuracies_per_epoch = []
