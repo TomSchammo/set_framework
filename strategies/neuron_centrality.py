@@ -114,23 +114,33 @@ class NeuronCentralitySET(BaseSETStrategy):
 
         match ex["layer"]:
             case "layer_1":
-                I_source = self.input_layer_importance(sf.w1[0], sf.wm1)
+                I_source = self.input_layer_importance(sf.w1[0], sf.wm1_buffer)
                 I_target = self.hidden_layer_neuron_importance(
-                    W_in=sf.w1[0], M_in=sf.wm1, W_out=sf.w2[0],
-                    M_out=sf.wm2)  # (4000,)
+                    W_in=sf.w1[0],
+                    M_in=sf.wm1_buffer,
+                    W_out=sf.w2[0],
+                    M_out=sf.wm2_buffer)  # (4000,)
             case "layer_2":
                 I_source = self.hidden_layer_neuron_importance(
-                    W_in=sf.w1[0], M_in=sf.wm1, W_out=sf.w2[0],
-                    M_out=sf.wm2)  # (4000,)
+                    W_in=sf.w1[0],
+                    M_in=sf.wm1_buffer,
+                    W_out=sf.w2[0],
+                    M_out=sf.wm2_buffer)  # (4000,)
                 I_target = self.hidden_layer_neuron_importance(
-                    W_in=sf.w2[0], M_in=sf.wm2, W_out=sf.w3[0],
-                    M_out=sf.wm3)  # (1000,)
+                    W_in=sf.w2[0],
+                    M_in=sf.wm2_buffer,
+                    W_out=sf.w3[0],
+                    M_out=sf.wm3_buffer)  # (1000,)
             case "layer_3":
                 I_source = self.hidden_layer_neuron_importance(
-                    W_in=sf.w2[0], M_in=sf.wm2, W_out=sf.w3[0],
-                    M_out=sf.wm3)  # (1000,)
+                    W_in=sf.w2[0],
+                    M_in=sf.wm2_buffer,
+                    W_out=sf.w3[0],
+                    M_out=sf.wm3_buffer)  # (1000,)
                 I_target = self.hidden_layer_neuron_importance(
-                    W_in=sf.w3[0], M_in=sf.wm3, W_out=sf.w4[0],
+                    W_in=sf.w3[0],
+                    M_in=sf.wm3_buffer,
+                    W_out=sf.w4[0],
                     M_out=None)  # (4000,)
             case _:
                 raise ValueError(f"Invalid layer '{ex['layer']}'")

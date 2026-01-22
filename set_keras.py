@@ -113,10 +113,12 @@ class SET_MLP_CIFAR10:
         self.momentum = 0.9  # SGD momentum
 
         # generate an Erdos Renyi sparse weights mask for each layer
-        [self.noPar1, self.wm1] = createWeightsMask(self.epsilon, 32 * 32 * 3,
-                                                    4000)
-        [self.noPar2, self.wm2] = createWeightsMask(self.epsilon, 4000, 1000)
-        [self.noPar3, self.wm3] = createWeightsMask(self.epsilon, 1000, 4000)
+        [self.noPar1,
+         self.wm1_buffer] = createWeightsMask(self.epsilon, 32 * 32 * 3, 4000)
+        [self.noPar2,
+         self.wm2_buffer] = createWeightsMask(self.epsilon, 4000, 1000)
+        [self.noPar3,
+         self.wm3_buffer] = createWeightsMask(self.epsilon, 1000, 4000)
 
         # initialize layers weights
         self.w1 = None
@@ -129,13 +131,10 @@ class SET_MLP_CIFAR10:
         self.wSRelu2 = None
         self.wSRelu3 = None
 
-        self.wm1_buffer = np.zeros((32 * 32 * 3, 4000), dtype=np.float32)
         self.wm1_core_buffer = np.zeros_like(self.wm1_buffer, dtype=np.float32)
 
-        self.wm2_buffer = np.zeros((4000, 1000), dtype=np.float32)
         self.wm2_core_buffer = np.zeros_like(self.wm2_buffer, dtype=np.float32)
 
-        self.wm3_buffer = np.zeros((1000, 4000), dtype=np.float32)
         self.wm3_core_buffer = np.zeros_like(self.wm3_buffer, dtype=np.float32)
 
         # create a SET-MLP model
@@ -149,19 +148,19 @@ class SET_MLP_CIFAR10:
         self.model.add(
             Dense(4000,
                   name="sparse_1",
-                  kernel_constraint=MaskWeights(self.wm1)))
+                  kernel_constraint=MaskWeights(self.wm1_buffer)))
         self.model.add(SReLU(name="srelu1"))
         self.model.add(Dropout(0.3))
         self.model.add(
             Dense(1000,
                   name="sparse_2",
-                  kernel_constraint=MaskWeights(self.wm2)))
+                  kernel_constraint=MaskWeights(self.wm2_buffer)))
         self.model.add(SReLU(name="srelu2"))
         self.model.add(Dropout(0.3))
         self.model.add(
             Dense(4000,
                   name="sparse_3",
-                  kernel_constraint=MaskWeights(self.wm3)))
+                  kernel_constraint=MaskWeights(self.wm3_buffer)))
         self.model.add(SReLU(name="srelu3"))
         self.model.add(Dropout(0.3))
         self.model.add(
@@ -244,32 +243,32 @@ class SET_MLP_CIFAR10:
         match self.strategy.__class__.__name__:
             case "RandomSET":
                 [self.wm1_buffer, self.wm1_core_buffer
-                 ] = self.rewireMask(self.w1[0], self.noPar1, self.wm1,
+                 ] = self.rewireMask(self.w1[0], self.noPar1, self.wm1_buffer,
                                      self.wm1_core_buffer, self.wm1_buffer,
                                      {"temp_buf": self.wm1_core_buffer})
                 [self.wm2_buffer, self.wm2_core_buffer
-                 ] = self.rewireMask(self.w2[0], self.noPar2, self.wm2,
+                 ] = self.rewireMask(self.w2[0], self.noPar2, self.wm2_buffer,
                                      self.wm2_core_buffer, self.wm2_buffer,
                                      {"temp_buf": self.wm2_core_buffer})
                 [self.wm3_buffer, self.wm3_core_buffer
-                 ] = self.rewireMask(self.w3[0], self.noPar3, self.wm3,
+                 ] = self.rewireMask(self.w3[0], self.noPar3, self.wm3_buffer,
                                      self.wm3_core_buffer, self.wm3_buffer,
                                      {"temp_buf": self.wm3_core_buffer})
             case "NeuronCentralitySET":
                 [self.wm1_buffer, self.wm1_core_buffer
-                 ] = self.rewireMask(self.w1[0], self.noPar1, self.wm1,
+                 ] = self.rewireMask(self.w1[0], self.noPar1, self.wm1_buffer,
                                      self.wm1_core_buffer, self.wm1_buffer, {
                                          "layer": "layer_1",
                                          "self": self
                                      })
                 [self.wm2_buffer, self.wm2_core_buffer
-                 ] = self.rewireMask(self.w2[0], self.noPar2, self.wm2,
+                 ] = self.rewireMask(self.w2[0], self.noPar2, self.wm2_buffer,
                                      self.wm2_core_buffer, self.wm2_buffer, {
                                          "layer": "layer_2",
                                          "self": self
                                      })
                 [self.wm3_buffer, self.wm3_core_buffer
-                 ] = self.rewireMask(self.w3[0], self.noPar3, self.wm3,
+                 ] = self.rewireMask(self.w3[0], self.noPar3, self.wm3_buffer,
                                      self.wm3_core_buffer, self.wm3_buffer, {
                                          "layer": "layer_3",
                                          "self": self
