@@ -348,17 +348,21 @@ class SET_MLP_CIFAR10:
         #     horizontal_flip=True,  # randomly flip images
         #     vertical_flip=False)  # randomly flip images
         # datagen.fit(x_train)
-        
-        data_augmentation = tf.keras.Sequential([
-            tf.keras.layers.RandomFlip("horizontal"),
-            tf.keras.layers.RandomTranslation(0.1, 0.1),
-            tf.keras.layers.RandomRotation(10/360.0),  # 10 degrees
-        ], name="data_augmentation")
+
+        data_augmentation = tf.keras.Sequential(
+            [
+                tf.keras.layers.RandomFlip("horizontal"),
+                tf.keras.layers.RandomTranslation(0.1, 0.1),
+                tf.keras.layers.RandomRotation(10 / 360.0),  # 10 degrees
+            ],
+            name="data_augmentation")
 
         train_ds = tf.data.Dataset.from_tensor_slices((x_train, y_train))
         # train_ds = train_ds.shuffle(50000, reshuffle_each_iteration=True)
         train_ds = train_ds.batch(self.batch_size)
-        train_ds = train_ds.map(lambda x, y: (data_augmentation(x, training=True), y), num_parallel_calls=AUTOTUNE)
+        train_ds = train_ds.map(lambda x, y:
+                                (data_augmentation(x, training=True), y),
+                                num_parallel_calls=AUTOTUNE)
         train_ds = train_ds.prefetch(AUTOTUNE)
 
         val_ds = tf.data.Dataset.from_tensor_slices((x_test, y_test))
@@ -379,12 +383,11 @@ class SET_MLP_CIFAR10:
 
         for epoch in range(0, self.maxepoches):
 
-            historytemp = self.model.fit(
-                train_ds,
-                steps_per_epoch=x_train.shape[0] // self.batch_size,
-                epochs=epoch,
-                validation_data=val_ds,
-                initial_epoch=epoch - 1)
+            historytemp = self.model.fit(train_ds,
+                                         steps_per_epoch=steps_per_epoch,
+                                         epochs=epoch,
+                                         validation_data=val_ds,
+                                         initial_epoch=epoch - 1)
 
             accuracy = historytemp.history['val_accuracy'][0]
             if accuracy > best_accuracy:
