@@ -2,7 +2,7 @@ from strategies.random_set import RandomSET
 from strategies.neuron_centrality import NeuronCentralitySET
 from set_keras import SET_MLP_CIFAR10
 import numpy as np
-import os
+from pathlib import Path
 
 from argparse import ArgumentParser
 
@@ -86,7 +86,10 @@ def main():
 
     for model_cls in models:
         save_dir = f"{model_cls.__name__.lower()}_results_{run_type}"
-        from pathlib import Path
+
+        if args.seed:
+            save_dir = f"{save_dir}_seed={args.seed}"
+
         Path(save_dir).mkdir(exist_ok=True)
         for strategy in strategies:
             model = model_cls(strategy=strategy, max_epochs=max_epochs)
