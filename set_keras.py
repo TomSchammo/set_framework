@@ -308,6 +308,22 @@ class SET_MLP_CIFAR10:
                                          "layer": "layer_3",
                                          "self": self
                                      })
+            case "NeuronEMASet":
+                [self.wm1_buffer, self.wm1_core_buffer] = self.rewireMask(
+                    self.w1[0], self.noPar1, self.wm1_buffer,
+                    self.wm1_core_buffer, self.wm1_buffer,
+                    {"layer": "layer_1", "self": self}
+                )
+                [self.wm2_buffer, self.wm2_core_buffer] = self.rewireMask(
+                    self.w2[0], self.noPar2, self.wm2_buffer,
+                    self.wm2_core_buffer, self.wm2_buffer,
+                    {"layer": "layer_2", "self": self}
+                )
+                [self.wm3_buffer, self.wm3_core_buffer] = self.rewireMask(
+                    self.w3[0], self.noPar3, self.wm3_buffer,
+                    self.wm3_core_buffer, self.wm3_buffer,
+                    {"layer": "layer_3", "self": self}
+                )
             case _:
                 raise NotImplementedError(
                     f"Strategy {self.strategy.__class__.__name__} not implemented"
@@ -328,6 +344,9 @@ class SET_MLP_CIFAR10:
 
         # read CIFAR10 data
         [x_train, x_test, y_train, y_test] = self.read_data()
+        
+        #had to add this line
+        self._ema_x_train = x_train
 
         steps_per_epoch = x_train.shape[0] // self.batch_size
 
@@ -423,7 +442,7 @@ class SET_MLP_CIFAR10:
         x_test = (x_test - xTrainMean) / xTtrainStd
 
         return [x_train, x_test, y_train, y_test]
-
+    
 
 if __name__ == '__main__':
     set_strategy = RandomSET()

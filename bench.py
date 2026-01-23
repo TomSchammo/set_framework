@@ -1,5 +1,6 @@
 from strategies.random_set import RandomSET
 from strategies.neuron_centrality import NeuronCentralitySET
+from strategies.ema import NeuronEMASet
 from set_keras import SET_MLP_CIFAR10
 import numpy as np
 from pathlib import Path
@@ -78,8 +79,9 @@ def main():
             gpus[0],
             [tf.config.LogicalDeviceConfiguration(memory_limit=10240)])
 
-    strategies = [RandomSET(), NeuronCentralitySET()]
+    strategies = [RandomSET(), NeuronCentralitySET(), NeuronEMASet()]
 
+    #strategies = [NeuronEMASet()]
     models = [SET_MLP_CIFAR10]
 
     results: list[tuple[str, int | float]] = []
