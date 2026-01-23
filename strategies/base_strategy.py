@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Set, Tuple, List
+from typing import Optional, Tuple
 import numpy as np
 
 
@@ -19,12 +19,14 @@ class BaseSETStrategy(ABC):
         Decide which connections to KEEP.
 
         Args:
+            mask_buffer: 2D array containing the current mask, to be modified in place
             weight_values: 1D array of weight values
             weight_positions: Optional (N, 2) array of (row, col) positions
             extra_info: Optional dict with gradients, activations, etc.
 
         Returns:
-            Boolean array: True = keep, False = remove
+            Reference to the mask_buffer for API purposes
+
         """
         pass
 
@@ -40,10 +42,7 @@ class BaseSETStrategy(ABC):
         Args:
             num_to_add: How many connections to add
             dimensions: (n_rows, n_cols) of weight matrix
-            existing_positions: Set of (row, col) that already exist
+            mask: 2D array containing current mask to be modified in place
             extra_info: Optional dict with neuron importance, etc.
-
-        Returns:
-            List of (row, col) tuples for new connections
         """
         pass
