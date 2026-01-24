@@ -95,8 +95,8 @@ def main():
 
     # ---- strategies you want ----
     strategies = [
-        RandomSET(),                    # ONLY no-skip 
         NeuronCentralitySET(),           # run both
+        RandomSET(),                    # ONLY no-skip 
         NeuronEMASET(),                  # run both
         FisherDiagonalSET(zeta=0.3, beta=0.9, eps=1e-8, seed=args.seed),  # run both
     ]

@@ -382,11 +382,11 @@ class SET_MLP_CIFAR10:
             )
 
         # apply core masks to weights
-        self.w1[0] *= self.wm1_core_buffer
-        self.w2[0] *= self.wm2_core_buffer
-        self.w3[0] *= self.wm3_core_buffer
+        self.w1[0] *= self.wm1_buffer
+        self.w2[0] *= self.wm2_buffer
+        self.w3[0] *= self.wm3_buffer
         if self.use_skip:
-            self.wSkip02[0] *= self.wmSkip02_core_buffer
+            self.wSkip02[0] *= self.wmSkip02_buffer
 
         # push masks into constraints
         self.model.get_layer("sparse_1").kernel_constraint.update(self.wm1_buffer)
