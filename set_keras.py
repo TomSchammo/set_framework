@@ -270,25 +270,24 @@ class SET_MLP_CIFAR10:
         
     def compute_kernel_grads(self, x_batch, y_batch):
         loss_fn = tf.keras.losses.CategoricalCrossentropy()
-
+    
         k1 = self.model.get_layer("sparse_1").kernel
         k2 = self.model.get_layer("sparse_2").kernel
         k3 = self.model.get_layer("sparse_3").kernel
         kskip = self.model.get_layer("skip_02").kernel if self.use_skip else None
-
+    
         with tf.GradientTape() as tape:
-            if self.use_skip:
-                y_pred = self.model([x_batch], training=True)  # <-- important
-            else:
-                y_pred = self.model(x_batch, training=True)
+            # IMPORTANT: even with skip model, input is still a single tensor
+            y_pred = self.model(x_batch, training=True)
             loss = loss_fn(y_batch, y_pred)
-
+    
         if self.use_skip:
             g1, g2, gskip, g3 = tape.gradient(loss, [k1, k2, kskip, k3])
             return [g1.numpy(), g2.numpy(), gskip.numpy(), g3.numpy()]
         else:
             g1, g2, g3 = tape.gradient(loss, [k1, k2, k3])
             return [g1.numpy(), g2.numpy(), g3.numpy()]
+
 
 
     def rewireMask(self, weights_2d, noWeights: int, mask_2d, core_buffer_2d, extra_info: dict):
@@ -347,7 +346,7 @@ class SET_MLP_CIFAR10:
 
         self.rewireMask(self.w2[0], self.noPar2, self.wm2_buffer, self.wm2_core_buffer, ex2)
 
-        # --- Layer 3 ---
+        #Layer 3
         if needs_grad:
             if self.use_skip:
                 v3 = fisher_payload["Vs"][-1]
@@ -419,26 +418,14 @@ class SET_MLP_CIFAR10:
         train_ds = tf.data.Dataset.from_tensor_slices((x_train, y_train))
         train_ds = train_ds.batch(self.batch_size)
 
-        if self.use_skip:
-            train_ds = train_ds.map(
-                lambda x, y: ([data_augmentation(x, training=True)], y),
-                num_parallel_calls=AUTOTUNE,
-            )
-        else:
-            train_ds = train_ds.map(
-                lambda x, y: (data_augmentation(x, training=True), y),
-                num_parallel_calls=AUTOTUNE,
-            )
-
+        train_ds = train_ds.map(
+            lambda x, y: (data_augmentation(x, training=True), y),
+            num_parallel_calls=AUTOTUNE,
+        )
         train_ds = train_ds.prefetch(AUTOTUNE)
 
         val_ds = tf.data.Dataset.from_tensor_slices((x_test, y_test))
-        val_ds = val_ds.batch(self.batch_size)
-
-        if self.use_skip:
-            val_ds = val_ds.map(lambda x, y: ([x], y), num_parallel_calls=AUTOTUNE)
-
-        val_ds = val_ds.prefetch(AUTOTUNE)
+        val_ds = val_ds.batch(self.batch_size).prefetch(AUTOTUNE)
 
         self.accuracies_per_epoch = []
         epoch_count = -1
