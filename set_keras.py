@@ -764,10 +764,6 @@ class SET_MLP_CIFAR10:
 
     def train(self, target_accuracy=1.0):
         [x_train, x_test, y_train, y_test] = self.read_data()
-<<<<<<< HEAD
-=======
-        self._ema_x_train = x_train  # EMA strategy uses this
->>>>>>> d3cea24 (Update set_keras.py)
 
         steps_per_epoch = x_train.shape[0] // self.batch_size
 
