@@ -38,19 +38,18 @@
 #publisher = "Eindhoven University of Technology",
 #}
 
-
 from __future__ import division, print_function
 
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import backend as K
 
-from keras.models import Sequential, Model
-from keras.layers import Dense, Dropout, Activation, Flatten, Input, Add
-from keras import optimizers
-from keras.constraints import Constraint
-from keras.datasets import cifar10
-from keras.utils import to_categorical
+from tensorflow.keras.models import Sequential, Model
+from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten, Input, Add
+from tensorflow.keras import optimizers
+from tensorflow.keras.constraints import Constraint
+from tensorflow.keras.datasets import cifar10
+from tensorflow.keras.utils import to_categorical
 
 from strategies.base_strategy import BaseSETStrategy
 from srelu import SReLU
@@ -268,7 +267,6 @@ class SET_MLP_CIFAR10:
             self.wSkip02 = [a.copy() for a in state["wSkip02"]]
 
         self._restore_previous_weights()
-
         
     def compute_kernel_grads(self, x_batch, y_batch):
         loss_fn = tf.keras.losses.CategoricalCrossentropy()
@@ -279,7 +277,10 @@ class SET_MLP_CIFAR10:
         kskip = self.model.get_layer("skip_02").kernel if self.use_skip else None
 
         with tf.GradientTape() as tape:
-            y_pred = self.model(x_batch, training=True)
+            if self.use_skip:
+                y_pred = self.model([x_batch], training=True)  # <-- important
+            else:
+                y_pred = self.model(x_batch, training=True)
             loss = loss_fn(y_batch, y_pred)
 
         if self.use_skip:
@@ -414,17 +415,30 @@ class SET_MLP_CIFAR10:
             ],
             name="data_augmentation",
         )
-
+        
         train_ds = tf.data.Dataset.from_tensor_slices((x_train, y_train))
         train_ds = train_ds.batch(self.batch_size)
-        train_ds = train_ds.map(
-            lambda x, y: (data_augmentation(x, training=True), y),
-            num_parallel_calls=AUTOTUNE,
-        )
+
+        if self.use_skip:
+            train_ds = train_ds.map(
+                lambda x, y: ([data_augmentation(x, training=True)], y),
+                num_parallel_calls=AUTOTUNE,
+            )
+        else:
+            train_ds = train_ds.map(
+                lambda x, y: (data_augmentation(x, training=True), y),
+                num_parallel_calls=AUTOTUNE,
+            )
+
         train_ds = train_ds.prefetch(AUTOTUNE)
 
         val_ds = tf.data.Dataset.from_tensor_slices((x_test, y_test))
-        val_ds = val_ds.batch(self.batch_size).prefetch(AUTOTUNE)
+        val_ds = val_ds.batch(self.batch_size)
+
+        if self.use_skip:
+            val_ds = val_ds.map(lambda x, y: ([x], y), num_parallel_calls=AUTOTUNE)
+
+        val_ds = val_ds.prefetch(AUTOTUNE)
 
         self.accuracies_per_epoch = []
         epoch_count = -1
