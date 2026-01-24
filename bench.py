@@ -101,7 +101,6 @@ def main():
     setup_gpu()
     set_seeds(args.seed)
 
-    # IMPORTANT: use factories so strategy state never leaks across runs
     strategy_fns = [
         ("RandomSET", lambda: RandomSET()), 
         ("NeuronCentralitySET", lambda: NeuronCentralitySET(seed=args.seed)),  # run both
