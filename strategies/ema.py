@@ -103,7 +103,7 @@ class NeuronEMASET(BaseSETStrategy):
         xb = x_train[idx]
 
         act_model = self._activation_model(parent.model, act_layer_name)
-        a = act_model(xb, training=False).numpy()  # [bs, n_units]
+        a = act_model([xb], training=False).numpy()  
         score = np.mean(np.abs(a), axis=0).astype(np.float64)
 
         prev = self._ema.get(layer_key)
