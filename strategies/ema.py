@@ -1,20 +1,24 @@
 import numpy as np
 import tensorflow as tf
-from typing import Tuple, Optional, Dict, Any
+from typing import Tuple, Optional, Dict
 
 from .base_strategy import BaseSETStrategy
 
 
-class NeuronEMASET(BaseSETStrategy):
+def find_first_pos(array: np.ndarray, value: float) -> int:
+    idx = (np.abs(array - value)).argmin()
+    return int(idx)
+
+
+def find_last_pos(array: np.ndarray, value: float) -> int:
+    idx = (np.abs(array - value))[::-1].argmin()
+    return int(array.shape[0] - idx)
+
+
+class NeuronEMASet(BaseSETStrategy):
     """
-    Buffer / in-place EMA-biased SET.
-
-    Prune: smallest-magnitude fraction among ACTIVE edges (in-place).
-    Regrow: choose new edges biased toward high EMA(mean(|activation|)) of TARGET neurons.
-            Supports layers: layer_1, layer_2, layer_3, skip_02
-
-    Notes:
-      - Expects set_keras to set parent._ema_x_train = x_train
+    Pruning: RandomSET-style thresholding around 0 (applied only on existing edges).
+    Regrow: biased toward neurons with high EMA(mean(|activation|)) of that layer.
     """
 
     def __init__(
@@ -24,87 +28,109 @@ class NeuronEMASET(BaseSETStrategy):
         ema_batches: int = 1,
         sample_batch_size: int = 256,
         eps: float = 1e-12,
-        seed=None,
     ):
-        super().__init__(float(zeta))
-        self.ema_beta = float(ema_beta)
-        self.ema_batches = int(ema_batches)
-        self.sample_batch_size = int(sample_batch_size)
-        self.eps = float(eps)
-        self.rng = np.random.default_rng(seed)
+        super().__init__(zeta)
+        self.ema_beta = ema_beta
+        self.ema_batches = ema_batches
+        self.sample_batch_size = sample_batch_size
+        self.eps = eps
 
         self._ema: Dict[str, np.ndarray] = {}
-        self._counter: Dict[str, int] = {}
+        self._update_counter: Dict[str, int] = {}
+        self._act_model_cache: Dict[tuple[int, str], tf.keras.Model] = {}
 
-        
+
     def prune_neurons(
         self,
         mask_buffer: np.ndarray,
         weight_values: np.ndarray,
         weight_positions: Optional[np.ndarray] = None,
-        extra_info: Optional[Dict[str, Any]] = None,
+        extra_info: Optional[dict] = None,
     ) -> np.ndarray:
-        mb = mask_buffer.ravel()
-        w = np.asarray(weight_values).ravel()
+        """
+        Minimal-compat mode for your current set_keras.py:
+
+          - weight_values     == weights.ravel()
+          - weight_positions  == mask.ravel()  (NOT positions)
+          - mask_buffer       must be modified in-place and returned
+        """
         if weight_positions is None:
-            m = (mb != 0)
-        else:
-            m = np.asarray(weight_positions).ravel().astype(bool)
-
-        if mb.shape != w.shape or mb.shape != m.shape:
-            raise ValueError(f"Shape mismatch: mb{mb.shape}, w{w.shape}, m{m.shape}")
-
-        np.copyto(mb, m.astype(mb.dtype, copy=False))
-
-        active = np.flatnonzero(m)
-        n_active = active.size
-        if n_active == 0:
-            mb[:] = 0
             return mask_buffer
 
-        k = int(self.zeta * n_active)
-        if k <= 0:
+        mflat = np.asarray(weight_positions).astype(bool)  # current mask (flat)
+        wflat = np.asarray(weight_values)
+
+        # Start from the current mask
+        mask_buffer.flat[:] = mflat.astype(mask_buffer.dtype)
+
+        existing_w = wflat[mflat]
+        if existing_w.size == 0:
             return mask_buffer
 
-        vals = np.abs(w[active])
-        order = np.argsort(vals)  # low -> high
-        prune_idx = active[order[:k]]
-        mb[prune_idx] = 0
+        # RandomSET-like thresholding around zero, but computed only on existing edges
+        values = np.sort(existing_w)
+
+        # avoid edge-case indexing crashes
+        first_zero = int(np.clip(find_first_pos(values, 0), 0, values.size - 1))
+        last_zero = int(np.clip(find_last_pos(values, 0), 0, values.size))
+
+        idx_neg = int(np.clip((1.0 - self.zeta) * first_zero, 0, values.size - 1))
+        idx_pos = int(
+            np.clip(last_zero + self.zeta * (values.size - last_zero), 0, values.size - 1)
+        )
+
+        largest_negative = values[idx_neg]
+        smallest_positive = values[idx_pos]
+
+        keep_existing = (existing_w > smallest_positive) | (existing_w < largest_negative)
+
+        # Drop pruned edges from mask_buffer
+        existing_idx = np.flatnonzero(mflat)
+        prune_idx = existing_idx[~keep_existing]
+        mask_buffer.flat[prune_idx] = 0
+
         return mask_buffer
 
-    
-    def _activation_model(self, parent_model: tf.keras.Model, layer_name: str) -> tf.keras.Model:
-        lay = parent_model.get_layer(layer_name)
-        return tf.keras.Model(inputs=parent_model.inputs, outputs=lay.output)
+    #utility functions
 
-    def _update_ema(self, parent, layer_key: str) -> None:
+    def _get_activation_model(self, parent_model: tf.keras.Model, layer_name: str) -> tf.keras.Model:
+        key = (id(parent_model), layer_name)
+        m = self._act_model_cache.get(key)
+        if m is None:
+            lay = parent_model.get_layer(layer_name)
+
+            try:
+                inputs = parent_model.input
+            except AttributeError:
+                inputs = parent_model.inputs
+
+            m = tf.keras.Model(inputs=inputs, outputs=lay.output)
+            self._act_model_cache[key] = m
+        return m
+
+
+    def _update_ema_for_layer(self, parent, layer_key: str) -> None:
         x_train = getattr(parent, "_ema_x_train", None)
         if x_train is None:
             return
 
-        # map edge-layer -> activation layer to measure TARGET neuron activity
-        layer_map = {
-            "layer_1": "srelu1",  # target = 4000
-            "layer_2": "srelu2",  # target = 1000
-            "layer_3": "srelu3",  # target = 4000
-            "skip_02": "srelu2",  # skip targets layer2 units (1000)
-        }
+        layer_map = {"layer_1": "srelu1", "layer_2": "srelu2", "layer_3": "srelu3"}
         act_layer_name = layer_map.get(layer_key)
         if act_layer_name is None:
             return
 
-        c = self._counter.get(layer_key, 0) + 1
-        self._counter[layer_key] = c
-        if c % self.ema_batches != 0:
+        c = self._update_counter.get(layer_key, 0) + 1
+        self._update_counter[layer_key] = c
+        if self.ema_batches > 1 and (c % self.ema_batches) != 0:
             return
 
         bs = min(self.sample_batch_size, x_train.shape[0])
-        idx = self.rng.integers(0, x_train.shape[0], size=bs)
+        idx = np.random.randint(0, x_train.shape[0], size=bs)
         xb = x_train[idx]
 
-        act_model = self._activation_model(parent.model, act_layer_name)
-        a = act_model([xb], training=False).numpy()  
-        score = np.mean(np.abs(a), axis=0).astype(np.float64)
+        act_model = self._get_activation_model(parent.model, act_layer_name)
+        a = act_model([xb], training=False).numpy()  # [bs, n_units]
+        score = np.mean(np.abs(a), axis=0).astype(np.float64)  # [n_units]
 
         prev = self._ema.get(layer_key)
         if prev is None:
@@ -112,65 +138,49 @@ class NeuronEMASET(BaseSETStrategy):
         else:
             self._ema[layer_key] = self.ema_beta * prev + (1.0 - self.ema_beta) * score
 
+        ema = self._ema[layer_key]
+
+        print(
+            f"[EMA UPDATE] {layer_key} | "
+            f"mean={ema.mean():.3e} "
+            f"min={ema.min():.3e} "
+            f"max={ema.max():.3e}"
+        )
             
+    def _sample_col(self, probs: np.ndarray) -> int:
+        p = np.asarray(probs, dtype=np.float64) + self.eps
+        p /= p.sum()
+        return int(np.random.choice(len(p), p=p))
+
     def regrow_neurons(
         self,
         num_to_add: int,
         dimensions: Tuple[int, int],
         mask: np.ndarray,
-        extra_info: Optional[Dict[str, Any]] = None,
+        extra_info: Optional[dict] = None,
     ) -> None:
-        k = int(num_to_add)
-        if k <= 0:
-            return
-
         n_rows, n_cols = dimensions
 
-        parent = None
-        layer_key = None
-        if extra_info:
-            parent = extra_info.get("self")
-            layer_key = extra_info.get("layer")
+        layer_key = extra_info.get("layer") if extra_info else None
+        parent = extra_info.get("self") if extra_info else None
 
-        if parent is None or layer_key is None:
-            self._regrow_uniform(k, dimensions, mask)
-            return
+        if parent is not None and layer_key is not None:
+            self._update_ema_for_layer(parent, layer_key)
 
-        self._update_ema(parent, layer_key)
-        ema = self._ema.get(layer_key)
-
-        # if EMA missing or wrong size -> uniform
-        if ema is None or ema.size != n_cols:
-            self._regrow_uniform(k, dimensions, mask)
-            return
-
-        p = np.clip(ema.astype(np.float64), 0.0, None) + self.eps
-        p = p / p.sum()
+        ema = self._ema.get(layer_key) if layer_key is not None else None
 
         added = 0
-        attempts = 0
-        max_attempts = max(10_000, 50 * k)
+        tries = 0
+        max_tries = max(1000, num_to_add * 50)
 
-        while added < k and attempts < max_attempts:
-            attempts += 1
-            i = int(self.rng.integers(0, n_rows))        # source uniform
-            j = int(self.rng.choice(n_cols, p=p))        # target EMA-biased
-            if mask[i, j] == 0:
-                mask[i, j] = 1
-                added += 1
+        while added < num_to_add and tries < max_tries:
+            tries += 1
+            i = np.random.randint(0, n_rows)
+            if ema is None or ema.size != n_cols:
+                j = np.random.randint(0, n_cols)
+            else:
+                j = self._sample_col(ema)
 
-        if added < k:
-            self._regrow_uniform(k - added, dimensions, mask)
-
-    def _regrow_uniform(self, k: int, dimensions: Tuple[int, int], mask: np.ndarray) -> None:
-        n_rows, n_cols = dimensions
-        added = 0
-        attempts = 0
-        max_attempts = max(10_000, 50 * k)
-        while added < k and attempts < max_attempts:
-            attempts += 1
-            i = int(self.rng.integers(0, n_rows))
-            j = int(self.rng.integers(0, n_cols))
             if mask[i, j] == 0:
                 mask[i, j] = 1
                 added += 1
