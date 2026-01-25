@@ -1,126 +1,99 @@
 import numpy as np
-from typing import Tuple, Optional, Dict, Any
-from .base_strategy import BaseSETStrategy
-
+from strategies.base_strategy import BaseSETStrategy
 
 class FisherDiagonalSET(BaseSETStrategy):
     """
-    Buffer/in-place Fisher diagonal SET (with optional skip via uses_skip flag).
-
-    prune score (keep utility): w^2 / (V + eps)
-    regrow score:              g^2 / (V + eps)
-
-    set_keras passes:
-      prune: extra_info["v_flat"]  (len = weights.ravel())
-      grow : extra_info["g"], extra_info["v"] (2D arrays same shape as mask)
+    Fisher diagonal (NO SKIP):
+      prune: w^2/(v+eps)  keep highest (prune lowest zeta)
+      grow:  g^2/(v+eps)  activate best inactive candidates
     """
-
     needs_gradients = True
 
-    def __init__(self, zeta=0.3, beta=0.9, eps=1e-8, seed=None, use_skip: bool = False):
-        super().__init__(zeta=float(zeta))
+    def __init__(self, zeta=0.3, beta=0.9, eps=1e-8, seed=None):
+        self.zeta = float(zeta)
         self.beta = float(beta)
         self.eps = float(eps)
         self.rng = np.random.default_rng(seed)
-        self.uses_skip = bool(use_skip)
 
-        # set_keras will create/update these
         self.v1 = None
         self.v2 = None
         self.v3 = None
-        self.vSkip02 = None
 
-    def prune_neurons(
-        self,
-        mask_buffer: np.ndarray,
-        weight_values: np.ndarray,
-        weight_positions: Optional[np.ndarray] = None,
-        extra_info: Optional[Dict[str, Any]] = None,
-    ) -> np.ndarray:
+    # buffer-style API (works with the adapter rewireMask you already added)
+    def prune_neurons(self, mask_buffer, weights_flat, mask_flat, extra_info=None):
         if extra_info is None or "v_flat" not in extra_info:
-            raise ValueError("FisherDiagonalSET.prune_neurons requires extra_info['v_flat'].")
+            raise ValueError("FisherDiagonalSET needs extra_info['v_flat'].")
 
-        mb = mask_buffer.ravel()
-        w = np.asarray(weight_values).ravel().astype(np.float32, copy=False)
+        w = weights_flat.astype(np.float32, copy=False)
+        m = mask_flat.astype(np.float32, copy=False)
+        v = extra_info["v_flat"].astype(np.float32, copy=False)
 
-        if weight_positions is None:
-            m = (w != 0)
-        else:
-            m = np.asarray(weight_positions).ravel().astype(bool)
-
-        v = np.asarray(extra_info["v_flat"]).ravel().astype(np.float32, copy=False)
-
-        if mb.shape != w.shape or m.shape != w.shape or v.shape != w.shape:
-            raise ValueError(f"Shape mismatch: mb{mb.shape} w{w.shape} m{m.shape} v{v.shape}")
-
-        np.copyto(mb, m.astype(mb.dtype, copy=False))
-
-        active = np.flatnonzero(m)
-        n_active = active.size
-        if n_active == 0:
-            mb[:] = 0
+        active = np.flatnonzero(m > 0.0)
+        if active.size == 0:
+            mask_buffer[:] = m.reshape(mask_buffer.shape)
             return mask_buffer
 
+        n_active = active.size
         n_keep = int(np.round((1.0 - self.zeta) * n_active))
         n_keep = max(0, min(n_active, n_keep))
 
-        mb[:] = 0
-        if n_keep == 0:
-            return mask_buffer
-
         score = (w[active] * w[active]) / (v[active] + self.eps)
-        order = np.argsort(score)            # low -> high
-        keep_idx = active[order[-n_keep:]]   # keep top n_keep
-        mb[keep_idx] = 1
+
+        keep = np.zeros_like(m, dtype=np.float32)
+        if n_keep > 0:
+            order = np.argsort(score)          # low->high
+            keep_idx = active[order[-n_keep:]] # keep top
+            keep[keep_idx] = 1.0
+
+        mask_buffer[:] = keep.reshape(mask_buffer.shape)
         return mask_buffer
 
-    def regrow_neurons(
-        self,
-        num_to_add: int,
-        dimensions: Tuple[int, int],
-        mask: np.ndarray,
-        extra_info: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        k = int(num_to_add)
-        if k <= 0:
+    def regrow_neurons(self, noRewires, shape, mask_buffer, extra_info=None):
+        if noRewires <= 0:
             return
 
-        n_rows, n_cols = dimensions
+        inactive = np.argwhere(mask_buffer == 0)
+        if inactive.shape[0] == 0:
+            return
 
         if extra_info is None or ("g" not in extra_info) or ("v" not in extra_info):
-            self._regrow_random_inplace(k, mask)
+            self._regrow_random(noRewires, shape, mask_buffer)
             return
 
-        g = np.asarray(extra_info["g"], dtype=np.float32)
-        v = np.asarray(extra_info["v"], dtype=np.float32)
+        g = extra_info["g"]
+        v = extra_info["v"]
 
-        if g.shape != (n_rows, n_cols) or v.shape != (n_rows, n_cols):
-            self._regrow_random_inplace(k, mask)
-            return
-
-        inactive = np.argwhere(mask == 0)
-        N = inactive.shape[0]
-        if N == 0:
-            return
-        k = min(k, N)
-
-        # score candidates; bound candidate count for speed
-        cand = min(N, k * 20)
-        idx = self.rng.choice(N, size=cand, replace=False)
+        cand = min(inactive.shape[0], noRewires * 20)
+        idx = self.rng.choice(inactive.shape[0], size=cand, replace=False)
         c = inactive[idx]
         ci, cj = c[:, 0], c[:, 1]
 
         score = (g[ci, cj] * g[ci, cj]) / (v[ci, cj] + self.eps)
-        order = np.argsort(score)[::-1]  # high -> low
-        chosen = c[order[:k]]
+        order = np.argsort(score)[::-1]
 
-        mask[chosen[:, 0], chosen[:, 1]] = 1
+        grown = 0
+        for k in order:
+            i = int(ci[k]); j = int(cj[k])
+            if mask_buffer[i, j] != 0:
+                continue
+            mask_buffer[i, j] = 1.0
+            grown += 1
+            if grown >= noRewires:
+                return
 
-    def _regrow_random_inplace(self, k: int, mask: np.ndarray) -> None:
-        inactive = np.argwhere(mask == 0)
-        if inactive.shape[0] == 0:
-            return
-        k = min(k, inactive.shape[0])
-        idx = self.rng.choice(inactive.shape[0], size=k, replace=False)
-        pick = inactive[idx]
-        mask[pick[:, 0], pick[:, 1]] = 1
+        if grown < noRewires:
+            self._regrow_random(noRewires - grown, shape, mask_buffer)
+
+    def _regrow_random(self, k, shape, mask_buffer):
+        rows, cols = shape
+        tries = 0
+        max_tries = k * 500
+        grown = 0
+        while grown < k and tries < max_tries:
+            i = int(self.rng.integers(0, rows))
+            j = int(self.rng.integers(0, cols))
+            tries += 1
+            if mask_buffer[i, j] != 0:
+                continue
+            mask_buffer[i, j] = 1.0
+            grown += 1
