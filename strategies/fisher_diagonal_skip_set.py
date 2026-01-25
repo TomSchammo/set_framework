@@ -65,19 +65,21 @@ class FisherDiagonalSkipSET(BaseSETStrategy):
         """
         In-place regrow: sets mask_buffer[i,j]=1 for chosen inactive edges.
         """
-        if noRewires <= 0:
-            return
+
+        assert noRewires > 0, "Expected at least one wire"
+
 
         rows, cols = shape
         active_bool = (mask_buffer > 0.0)
         inactive = np.argwhere(~active_bool)
+        
         if inactive.shape[0] == 0:
-            return
+            assert ValueError("Inactive shape is zero; nothing to regrow!")
 
-        # If fisher info missing, do random regrow
+        # If no extra_info, value error
         if extra_info is None or ("g" not in extra_info) or ("v" not in extra_info):
-            self._regrow_random_inplace(noRewires, rows, cols, mask_buffer)
-            return
+            # self._regrow_random_inplace(noRewires, rows, cols, mask_buffer)
+            assert ValueError("FisherDiagonalSkipSET.regrow_neurons requires extra_info['g'] and extra_info['v'].")
 
         g = extra_info["g"]
         v = extra_info["v"]

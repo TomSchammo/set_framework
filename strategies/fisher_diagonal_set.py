@@ -49,8 +49,8 @@ class FisherDiagonalSET(BaseSETStrategy):
         return mask_buffer
 
     def regrow_neurons(self, noRewires, shape, mask_buffer, extra_info=None):
-        if noRewires <= 0:
-            return
+        
+        assert noRewires > 0, "Expected at least one wire"
 
         inactive = np.argwhere(mask_buffer == 0)
         if inactive.shape[0] == 0:
