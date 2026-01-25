@@ -84,13 +84,12 @@ def main():
             [tf.config.LogicalDeviceConfiguration(memory_limit=10240)])
 
     strategies = [
-        NeuronCentralitySET(),
-        RandomSET(),
-        # NeuronEMASet(),
+        FisherDiagonalSkipSET(),
         FisherDiagonalSET(),
-        NeuronCentralitySkipSET(),
+        RandomSET(),
+        NeuronCentralitySET()
+        # NeuronEMASet(),
         # NeuronEMASkipSET(),
-        FisherDiagonalSkipSET()
     ]
 
     models = [SET_MLP_CIFAR10]

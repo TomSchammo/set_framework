@@ -108,7 +108,6 @@ class NeuronCentralitySET(BaseSETStrategy):
 
         sf = ex["self"]
 
-        # TODO: If this happens there is a bug, so we should fail with an error message
         if sf is None:
             assert False
 
@@ -146,9 +145,10 @@ class NeuronCentralitySET(BaseSETStrategy):
                 raise ValueError(f"Invalid layer '{ex['layer']}'")
 
         # Build candidate dead edges
-        zeros = np.where(mask == 0)
+        zr, zc = np.where(mask == 0)
+        N_zero = zr.size
 
-        N_zero = len(zeros)
+        print(f"Debug : N_zero = {N_zero}, k = {k}")
         assert N_zero > 0, "There should be neurons that are not connected!"
 
         k = min(k, N_zero)
@@ -162,15 +162,8 @@ class NeuronCentralitySET(BaseSETStrategy):
                                None)
 
             if I_target.size == n_cols and I_source.size == n_rows:
-                rows = np.fromiter((p[0] for p in zeros),
-                                   dtype=np.int64,
-                                   count=N_zero)
-                cols = np.fromiter((p[1] for p in zeros),
-                                   dtype=np.int64,
-                                   count=N_zero)
-
                 # Preserve your original behavior:
-                imp_prod = I_target[cols] * I_source[rows]
+                imp_prod = I_target[zc] * I_source[zr]
 
                 # (Normal mapping would be: I_target[rows] * I_source[cols])
 
@@ -182,4 +175,4 @@ class NeuronCentralitySET(BaseSETStrategy):
                     probs = scores / ssum  # else leave as None for uniform
 
         chosen = np.random.choice(N_zero, size=k, replace=False, p=probs)
-        mask[chosen] = 1
+        mask[zr[chosen], zc[chosen]] = 1
