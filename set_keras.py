@@ -108,6 +108,30 @@ from strategies.ema_skip import NeuronEMASkipSET
 AUTOTUNE = tf.data.AUTOTUNE
 
 
+def zero_pattern_equal(a, b, tol=0.0):
+    """
+    Returns True if a and b have zeros at exactly the same indices.
+    tol allows treating small values as zero.
+    """
+
+    if a is None or b is None:
+        return False
+
+    a = np.asarray(a)
+    b = np.asarray(b)
+
+    if a.shape != b.shape:
+        return False
+
+    zero_a = np.abs(a) <= tol
+    zero_b = np.abs(b) <= tol
+
+    return np.array_equal(zero_a, zero_b)
+
+
+old_weights = None
+
+
 def createWeightsMask(epsilon, noRows, noCols):
     mask_weights = np.random.rand(noRows, noCols)
     prob = 1 - (epsilon * (noRows + noCols)) / (noRows * noCols)
@@ -482,6 +506,13 @@ class SET_MLP_CIFAR10:
         self.wSRelu1 = self.model.get_layer("srelu1").get_weights()
         self.wSRelu2 = self.model.get_layer("srelu2").get_weights()
         self.wSRelu3 = self.model.get_layer("srelu3").get_weights()
+
+        global old_weights
+
+        if old_weights is not None:
+            print(f"equal? {zero_pattern_equal(old_weights, self.w1[0])}")
+
+        old_weights = self.w1[0]
 
         use_skip = isinstance(
             self.strategy,
