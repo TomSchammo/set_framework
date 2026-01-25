@@ -28,15 +28,12 @@ class NeuronEMASet(BaseSETStrategy):
         ema_batches: int = 1,
         sample_batch_size: int = 256,
         eps: float = 1e-12,
-        
     ):
         super().__init__(zeta)
 
         #EMA must be updated every time
-        assert ema_batches == 1, (
-            "NeuronEMASet: ema_batches must be 1. "
-            "EMA batching is disabled by design."
-        )
+        assert ema_batches == 1, ("NeuronEMASet: ema_batches must be 1. "
+                                  "EMA batching is disabled by design.")
 
         self.ema_beta = ema_beta
         self.ema_batches = ema_batches
@@ -79,16 +76,21 @@ class NeuronEMASet(BaseSETStrategy):
 
         values = np.sort(existing_w)
 
-        first_zero = int(np.clip(find_first_pos(values, 0), 0, values.size - 1))
-        last_zero  = int(np.clip(find_last_pos(values, 0), 0, values.size))
+        first_zero = int(np.clip(find_first_pos(values, 0), 0,
+                                 values.size - 1))
+        last_zero = int(np.clip(find_last_pos(values, 0), 0, values.size))
 
-        idx_neg = int(np.clip((1.0 - self.zeta) * first_zero, 0, values.size - 1))
-        idx_pos = int(np.clip(last_zero + self.zeta * (values.size - last_zero), 0, values.size - 1))
+        idx_neg = int(
+            np.clip((1.0 - self.zeta) * first_zero, 0, values.size - 1))
+        idx_pos = int(
+            np.clip(last_zero + self.zeta * (values.size - last_zero), 0,
+                    values.size - 1))
 
-        largest_negative   = values[idx_neg]
-        smallest_positive  = values[idx_pos]
+        largest_negative = values[idx_neg]
+        smallest_positive = values[idx_pos]
 
-        keep_existing = (existing_w > smallest_positive) | (existing_w < largest_negative)
+        keep_existing = (existing_w > smallest_positive) | (existing_w
+                                                            < largest_negative)
 
         # Drop pruned edges only
         prune_idx = existing_idx[~keep_existing]
@@ -96,10 +98,9 @@ class NeuronEMASet(BaseSETStrategy):
 
         return mask_buffer
 
-
-
     # utility functions
-    def _get_activation_model(self, parent_model: tf.keras.Model, layer_name: str) -> tf.keras.Model:
+    def _get_activation_model(self, parent_model: tf.keras.Model,
+                              layer_name: str) -> tf.keras.Model:
         key = (id(parent_model), layer_name)
         m = self._act_model_cache.get(key)
         if m is None:
@@ -119,10 +120,13 @@ class NeuronEMASet(BaseSETStrategy):
         assert x_train is not None, (
             "NeuronEMASet: parent has no attribute '_ema_x_train'. "
             "EMA-based regrowth requires training data to be attached "
-            "to the parent before calling regrow_neurons()."
-        )
+            "to the parent before calling regrow_neurons().")
 
-        layer_map = {"layer_1": "srelu1", "layer_2": "srelu2", "layer_3": "srelu3"}
+        layer_map = {
+            "layer_1": "srelu1",
+            "layer_2": "srelu2",
+            "layer_3": "srelu3"
+        }
         act_layer_name = layer_map.get(layer_key)
 
         assert act_layer_name is not None, (
@@ -147,16 +151,15 @@ class NeuronEMASet(BaseSETStrategy):
         if prev is None:
             self._ema[layer_key] = score
         else:
-            self._ema[layer_key] = self.ema_beta * prev + (1.0 - self.ema_beta) * score
+            self._ema[layer_key] = self.ema_beta * prev + (
+                1.0 - self.ema_beta) * score
 
         ema = self._ema[layer_key]
 
-        print(
-            f"[EMA UPDATE] {layer_key} | "
-            f"mean={ema.mean():.3e} "
-            f"min={ema.min():.3e} "
-            f"max={ema.max():.3e}"
-        )
+        print(f"[EMA UPDATE] {layer_key} | "
+              f"mean={ema.mean():.3e} "
+              f"min={ema.min():.3e} "
+              f"max={ema.max():.3e}")
 
     def _sample_col(self, probs: np.ndarray) -> int:
         p = np.asarray(probs, dtype=np.float64) + self.eps
@@ -181,8 +184,7 @@ class NeuronEMASet(BaseSETStrategy):
         if layer_key is None:
             raise RuntimeError(
                 "NeuronEMASet: missing layer key in extra_info['layer']; "
-                "cannot do EMA-based regrowth without a layer id."
-            )
+                "cannot do EMA-based regrowth without a layer id.")
 
         ema = self._ema.get(layer_key)
 
@@ -190,14 +192,12 @@ class NeuronEMASet(BaseSETStrategy):
             raise RuntimeError(
                 f"NeuronEMASet: EMA not initialized for layer '{layer_key}'. "
                 "Run at least one EMA update before regrowth (ensure _ema_x_train is set and "
-                "_update_ema_for_layer() is being called)."
-            )
+                "_update_ema_for_layer() is being called).")
 
         if ema.size != n_cols:
             raise RuntimeError(
                 f"NeuronEMASet: EMA size mismatch for layer '{layer_key}': "
-                f"ema.size={ema.size}, expected n_cols={n_cols}."
-            )
+                f"ema.size={ema.size}, expected n_cols={n_cols}.")
 
         added = 0
         tries = 0
