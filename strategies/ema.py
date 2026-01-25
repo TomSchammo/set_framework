@@ -43,7 +43,6 @@ class NeuronEMASet(BaseSETStrategy):
         self._ema: Dict[str, np.ndarray] = {}
         self._update_counter: Dict[str, int] = {}
         self._act_model_cache: Dict[tuple[int, str], tf.keras.Model] = {}
-        self._mflat_bool_cache: Dict[int, np.ndarray] = {}
 
     def prune_neurons(
         self,
@@ -52,18 +51,10 @@ class NeuronEMASet(BaseSETStrategy):
         weight_positions: Optional[np.ndarray] = None,
         extra_info: Optional[dict] = None,
     ) -> np.ndarray:
-        if weight_positions is None:
-            return mask_buffer
 
-        wp = np.asarray(weight_positions)
-        wflat = np.asarray(weight_values)
+        wflat = weight_values.ravel()
 
-        mflat = self._mflat_bool_cache.get(wp.size)
-        if mflat is None:
-            mflat = np.empty(wp.size, dtype=bool)
-            self._mflat_bool_cache[wp.size] = mflat
-
-        np.not_equal(wp, 0, out=mflat)
+        mflat = mask_buffer.ravel()
 
         existing_idx = np.flatnonzero(mflat)
         if existing_idx.size == 0:
