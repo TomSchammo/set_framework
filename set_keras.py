@@ -129,6 +129,7 @@ def zero_pattern_equal(a, b, tol=0.0):
 
 
 old_weights = None
+old_buffer = None
 
 
 def createWeightsMask(epsilon, noRows, noCols):
@@ -395,8 +396,10 @@ class SET_MLP_CIFAR10:
         np.copyto(core_buffer, mask_buffer)
 
         noRewires = int(noWeights - np.sum(mask_buffer))
-        if noRewires <= 0:
-            return mask_buffer, core_buffer
+        # if noRewires <= 0:
+        #     return mask_buffer, core_buffer
+
+        assert noRewires > 0, "Expected at least one wire to regrow"
 
         grow_extra = {} if extra_info is None else dict(extra_info)
         if fisher_g is not None and fisher_v is not None:
@@ -451,13 +454,14 @@ class SET_MLP_CIFAR10:
             fisher_v=vskip)
 
         total_need = need2 + needs
-        if total_need <= 0:
-            return
+
+        assert total_need > 0, "Total need was not met in fisher_choose_between_W2_and_skip"
 
         inactive2 = np.argwhere(self.wm2_buffer == 0)
         inactives = np.argwhere(self.wmSkip02_buffer == 0)
+        
         if inactive2.size == 0 and inactives.size == 0:
-            return
+            assert ValueError("No inactive weights to regrow in fisher_choose_between_W2_and_skip")
 
         cand_total = min(total_need * 20,
                          inactive2.shape[0] + inactives.shape[0])
@@ -506,11 +510,16 @@ class SET_MLP_CIFAR10:
         self.wSRelu3 = self.model.get_layer("srelu3").get_weights()
 
         global old_weights
+        global old_buffer
 
         if old_weights is not None:
             print(f"equal? {zero_pattern_equal(old_weights, self.w1[0])}")
+            print(f"equal buffer? {zero_pattern_equal(old_buffer, self.wm1_buffer)}")
 
-        old_weights = self.w1[0]
+        old_buffer = self.wm1_buffer.copy()
+        old_weights = self.w1[0].copy()
+
+
 
         use_skip = isinstance(self.strategy,
                               (FisherDiagonalSkipSET, NeuronCentralitySkipSET))
@@ -550,9 +559,9 @@ class SET_MLP_CIFAR10:
                                          "layer": "layer_3",
                                          "self": self
                                      })
-
             case "NeuronEMASet":
-                self.rewireMask(self.w1[0],
+                [self.wm1_buffer, self.wm1_core_buffer
+                 ] = self.rewireMask(self.w1[0],
                                 self.noPar1,
                                 self.wm1_buffer,
                                 self.wm1_core_buffer,
@@ -560,7 +569,8 @@ class SET_MLP_CIFAR10:
                                     "layer": "layer_1",
                                     "self": self
                                 })
-                self.rewireMask(self.w2[0],
+                [self.wm2_buffer, self.wm2_core_buffer
+                 ] = self.rewireMask(self.w2[0],
                                 self.noPar2,
                                 self.wm2_buffer,
                                 self.wm2_core_buffer,
@@ -568,7 +578,8 @@ class SET_MLP_CIFAR10:
                                     "layer": "layer_2",
                                     "self": self
                                 })
-                self.rewireMask(self.w3[0],
+                [self.wm3_buffer, self.wm3_core_buffer
+                 ] = self.rewireMask(self.w3[0],
                                 self.noPar3,
                                 self.wm3_buffer,
                                 self.wm3_core_buffer,
@@ -584,19 +595,22 @@ class SET_MLP_CIFAR10:
                 g1, g2, _, g3 = fisher_payload["grads"]
                 v1, v2, _, v3 = fisher_payload["Vs"]
 
-                self.rewireMask(self.w1[0],
+                [self.wm1_buffer, self.wm1_core_buffer
+                 ] = self.rewireMask(self.w1[0],
                                 self.noPar1,
                                 self.wm1_buffer,
                                 self.wm1_core_buffer,
                                 fisher_g=g1,
                                 fisher_v=v1)
-                self.rewireMask(self.w2[0],
+                [self.wm2_buffer, self.wm2_core_buffer
+                 ] = self.rewireMask(self.w2[0],
                                 self.noPar2,
                                 self.wm2_buffer,
                                 self.wm2_core_buffer,
                                 fisher_g=g2,
                                 fisher_v=v2)
-                self.rewireMask(self.w3[0],
+                [self.wm3_buffer, self.wm3_core_buffer
+                 ] = self.rewireMask(self.w3[0],
                                 self.noPar3,
                                 self.wm3_buffer,
                                 self.wm3_core_buffer,
@@ -611,13 +625,15 @@ class SET_MLP_CIFAR10:
                 v1, v2, vskip, v3 = fisher_payload["Vs"]
 
                 # W1 & W3 normal fisher
-                self.rewireMask(self.w1[0],
+                [self.wm1_buffer, self.wm1_core_buffer
+                 ] = self.rewireMask(self.w1[0],
                                 self.noPar1,
                                 self.wm1_buffer,
                                 self.wm1_core_buffer,
                                 fisher_g=g1,
                                 fisher_v=v1)
-                self.rewireMask(self.w3[0],
+                [self.wm3_buffer, self.wm3_core_buffer
+                 ] = self.rewireMask(self.w3[0],
                                 self.noPar3,
                                 self.wm3_buffer,
                                 self.wm3_core_buffer,
@@ -632,7 +648,8 @@ class SET_MLP_CIFAR10:
 
             case "NeuronCentralitySkipSET":
                 # W1 & W3 normal centrality
-                self.rewireMask(self.w1[0],
+                [self.wm1_buffer, self.wm1_core_buffer
+                 ] = self.rewireMask(self.w1[0],
                                 self.noPar1,
                                 self.wm1_buffer,
                                 self.wm1_core_buffer,
@@ -640,7 +657,8 @@ class SET_MLP_CIFAR10:
                                     "layer": "layer_1",
                                     "self": self
                                 })
-                self.rewireMask(self.w3[0],
+                [self.wm3_buffer, self.wm3_core_buffer
+                 ] = self.rewireMask(self.w3[0],
                                 self.noPar3,
                                 self.wm3_buffer,
                                 self.wm3_core_buffer,
