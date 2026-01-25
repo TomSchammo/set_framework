@@ -371,7 +371,7 @@ class SET_MLP_CIFAR10:
 
     def rewireMask(self,
                    weights,
-                   noWeights,
+                   no_weights,
                    mask_buffer,
                    core_buffer,
                    extra_info=None,
@@ -395,11 +395,9 @@ class SET_MLP_CIFAR10:
         # snapshot core right after prune
         np.copyto(core_buffer, mask_buffer)
 
-        noRewires = int(noWeights - np.sum(mask_buffer))
-        # if noRewires <= 0:
-        #     return mask_buffer, core_buffer
+        no_rewires = int(no_weights - np.sum(mask_buffer))
 
-        assert noRewires > 0, "Expected at least one wire to regrow"
+        assert no_rewires > 0, "Expected at least one wire to regrow"
 
         grow_extra = {} if extra_info is None else dict(extra_info)
         if fisher_g is not None and fisher_v is not None:
@@ -407,7 +405,7 @@ class SET_MLP_CIFAR10:
             grow_extra["v"] = fisher_v
             grow_extra["mask"] = (mask_buffer == 1)
 
-        self._call_regrow(noRewires, weights.shape, mask_buffer, grow_extra)
+        self._call_regrow(no_rewires, weights.shape, mask_buffer, grow_extra)
         return mask_buffer, core_buffer
 
     def _prune_only_into_buffers(self,
@@ -459,9 +457,11 @@ class SET_MLP_CIFAR10:
 
         inactive2 = np.argwhere(self.wm2_buffer == 0)
         inactives = np.argwhere(self.wmSkip02_buffer == 0)
-        
+
         if inactive2.size == 0 and inactives.size == 0:
-            assert ValueError("No inactive weights to regrow in fisher_choose_between_W2_and_skip")
+            assert ValueError(
+                "No inactive weights to regrow in fisher_choose_between_W2_and_skip"
+            )
 
         cand_total = min(total_need * 20,
                          inactive2.shape[0] + inactives.shape[0])
@@ -514,12 +514,12 @@ class SET_MLP_CIFAR10:
 
         if old_weights is not None:
             print(f"equal? {zero_pattern_equal(old_weights, self.w1[0])}")
-            print(f"equal buffer? {zero_pattern_equal(old_buffer, self.wm1_buffer)}")
+            print(
+                f"equal buffer? {zero_pattern_equal(old_buffer, self.wm1_buffer)}"
+            )
 
         old_buffer = self.wm1_buffer.copy()
         old_weights = self.w1[0].copy()
-
-
 
         use_skip = isinstance(self.strategy,
                               (FisherDiagonalSkipSET, NeuronCentralitySkipSET))
@@ -560,33 +560,36 @@ class SET_MLP_CIFAR10:
                                          "self": self
                                      })
             case "NeuronEMASet":
-                [self.wm1_buffer, self.wm1_core_buffer
-                 ] = self.rewireMask(self.w1[0],
-                                self.noPar1,
-                                self.wm1_buffer,
-                                self.wm1_core_buffer,
-                                extra_info={
-                                    "layer": "layer_1",
-                                    "self": self
-                                })
-                [self.wm2_buffer, self.wm2_core_buffer
-                 ] = self.rewireMask(self.w2[0],
-                                self.noPar2,
-                                self.wm2_buffer,
-                                self.wm2_core_buffer,
-                                extra_info={
-                                    "layer": "layer_2",
-                                    "self": self
-                                })
-                [self.wm3_buffer, self.wm3_core_buffer
-                 ] = self.rewireMask(self.w3[0],
-                                self.noPar3,
-                                self.wm3_buffer,
-                                self.wm3_core_buffer,
-                                extra_info={
-                                    "layer": "layer_3",
-                                    "self": self
-                                })
+                [self.wm1_buffer,
+                 self.wm1_core_buffer] = self.rewireMask(self.w1[0],
+                                                         self.noPar1,
+                                                         self.wm1_buffer,
+                                                         self.wm1_core_buffer,
+                                                         extra_info={
+                                                             "layer":
+                                                             "layer_1",
+                                                             "self": self
+                                                         })
+                [self.wm2_buffer,
+                 self.wm2_core_buffer] = self.rewireMask(self.w2[0],
+                                                         self.noPar2,
+                                                         self.wm2_buffer,
+                                                         self.wm2_core_buffer,
+                                                         extra_info={
+                                                             "layer":
+                                                             "layer_2",
+                                                             "self": self
+                                                         })
+                [self.wm3_buffer,
+                 self.wm3_core_buffer] = self.rewireMask(self.w3[0],
+                                                         self.noPar3,
+                                                         self.wm3_buffer,
+                                                         self.wm3_core_buffer,
+                                                         extra_info={
+                                                             "layer":
+                                                             "layer_3",
+                                                             "self": self
+                                                         })
 
             case "FisherDiagonalSET":
                 if fisher_payload is None:
@@ -595,27 +598,27 @@ class SET_MLP_CIFAR10:
                 g1, g2, _, g3 = fisher_payload["grads"]
                 v1, v2, _, v3 = fisher_payload["Vs"]
 
-                [self.wm1_buffer, self.wm1_core_buffer
-                 ] = self.rewireMask(self.w1[0],
-                                self.noPar1,
-                                self.wm1_buffer,
-                                self.wm1_core_buffer,
-                                fisher_g=g1,
-                                fisher_v=v1)
-                [self.wm2_buffer, self.wm2_core_buffer
-                 ] = self.rewireMask(self.w2[0],
-                                self.noPar2,
-                                self.wm2_buffer,
-                                self.wm2_core_buffer,
-                                fisher_g=g2,
-                                fisher_v=v2)
-                [self.wm3_buffer, self.wm3_core_buffer
-                 ] = self.rewireMask(self.w3[0],
-                                self.noPar3,
-                                self.wm3_buffer,
-                                self.wm3_core_buffer,
-                                fisher_g=g3,
-                                fisher_v=v3)
+                [self.wm1_buffer,
+                 self.wm1_core_buffer] = self.rewireMask(self.w1[0],
+                                                         self.noPar1,
+                                                         self.wm1_buffer,
+                                                         self.wm1_core_buffer,
+                                                         fisher_g=g1,
+                                                         fisher_v=v1)
+                [self.wm2_buffer,
+                 self.wm2_core_buffer] = self.rewireMask(self.w2[0],
+                                                         self.noPar2,
+                                                         self.wm2_buffer,
+                                                         self.wm2_core_buffer,
+                                                         fisher_g=g2,
+                                                         fisher_v=v2)
+                [self.wm3_buffer,
+                 self.wm3_core_buffer] = self.rewireMask(self.w3[0],
+                                                         self.noPar3,
+                                                         self.wm3_buffer,
+                                                         self.wm3_core_buffer,
+                                                         fisher_g=g3,
+                                                         fisher_v=v3)
 
             case "FisherDiagonalSkipSET":
                 if fisher_payload is None:
@@ -625,20 +628,20 @@ class SET_MLP_CIFAR10:
                 v1, v2, vskip, v3 = fisher_payload["Vs"]
 
                 # W1 & W3 normal fisher
-                [self.wm1_buffer, self.wm1_core_buffer
-                 ] = self.rewireMask(self.w1[0],
-                                self.noPar1,
-                                self.wm1_buffer,
-                                self.wm1_core_buffer,
-                                fisher_g=g1,
-                                fisher_v=v1)
-                [self.wm3_buffer, self.wm3_core_buffer
-                 ] = self.rewireMask(self.w3[0],
-                                self.noPar3,
-                                self.wm3_buffer,
-                                self.wm3_core_buffer,
-                                fisher_g=g3,
-                                fisher_v=v3)
+                [self.wm1_buffer,
+                 self.wm1_core_buffer] = self.rewireMask(self.w1[0],
+                                                         self.noPar1,
+                                                         self.wm1_buffer,
+                                                         self.wm1_core_buffer,
+                                                         fisher_g=g1,
+                                                         fisher_v=v1)
+                [self.wm3_buffer,
+                 self.wm3_core_buffer] = self.rewireMask(self.w3[0],
+                                                         self.noPar3,
+                                                         self.wm3_buffer,
+                                                         self.wm3_core_buffer,
+                                                         fisher_g=g3,
+                                                         fisher_v=v3)
 
                 # W2 vs skip shared-budget
                 self.fisher_choose_between_W2_and_skip(g2=g2,
@@ -648,24 +651,26 @@ class SET_MLP_CIFAR10:
 
             case "NeuronCentralitySkipSET":
                 # W1 & W3 normal centrality
-                [self.wm1_buffer, self.wm1_core_buffer
-                 ] = self.rewireMask(self.w1[0],
-                                self.noPar1,
-                                self.wm1_buffer,
-                                self.wm1_core_buffer,
-                                extra_info={
-                                    "layer": "layer_1",
-                                    "self": self
-                                })
-                [self.wm3_buffer, self.wm3_core_buffer
-                 ] = self.rewireMask(self.w3[0],
-                                self.noPar3,
-                                self.wm3_buffer,
-                                self.wm3_core_buffer,
-                                extra_info={
-                                    "layer": "layer_3",
-                                    "self": self
-                                })
+                [self.wm1_buffer,
+                 self.wm1_core_buffer] = self.rewireMask(self.w1[0],
+                                                         self.noPar1,
+                                                         self.wm1_buffer,
+                                                         self.wm1_core_buffer,
+                                                         extra_info={
+                                                             "layer":
+                                                             "layer_1",
+                                                             "self": self
+                                                         })
+                [self.wm3_buffer,
+                 self.wm3_core_buffer] = self.rewireMask(self.w3[0],
+                                                         self.noPar3,
+                                                         self.wm3_buffer,
+                                                         self.wm3_core_buffer,
+                                                         extra_info={
+                                                             "layer":
+                                                             "layer_3",
+                                                             "self": self
+                                                         })
 
                 # W2 vs skip shared-budget centrality chooser
                 self.strategy.choose_between_w2_and_skip(self)
@@ -714,6 +719,9 @@ class SET_MLP_CIFAR10:
 
     def train(self, target_accuracy=1.0):
         [x_train, x_test, y_train, y_test] = self.read_data()
+
+        #had to add this line
+        self._ema_x_train = x_train
 
         steps_per_epoch = x_train.shape[0] // self.batch_size
 
@@ -828,10 +836,11 @@ class SET_MLP_CIFAR10:
         x_train = x_train.astype('float32')
         x_test = x_test.astype('float32')
 
-        xTrainMean = np.mean(x_train, axis=0)
-        xTtrainStd = np.std(x_train, axis=0)
-        x_train = (x_train - xTrainMean) / xTtrainStd
-        x_test = (x_test - xTrainMean) / xTtrainStd
+        #normalize data
+        x_train_mean = np.mean(x_train, axis=0)
+        x_train_std = np.std(x_train, axis=0)
+        x_train = (x_train - x_train_mean) / x_train_std
+        x_test = (x_test - x_train_mean) / x_train_std
 
         return [x_train, x_test, y_train, y_test]
 

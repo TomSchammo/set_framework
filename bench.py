@@ -1,9 +1,10 @@
 from strategies.random_set import RandomSET
 from strategies.neuron_centrality import NeuronCentralitySET
-from strategies.neuron_centrality_skip import NeuronCentralitySkipSET
+# from strategies.neuron_centrality_skip import NeuronCentralitySkipSET
 from strategies.fisher_diagonal_set import FisherDiagonalSET
 from strategies.fisher_diagonal_skip_set import FisherDiagonalSkipSET
 # from strategies.ema_skip import NeuronEMASkipSET
+from strategies.ema import NeuronEMASet
 
 from set_keras import SET_MLP_CIFAR10
 import numpy as np
@@ -87,8 +88,8 @@ def main():
         FisherDiagonalSkipSET(),
         FisherDiagonalSET(),
         RandomSET(),
-        NeuronCentralitySET()
-        # NeuronEMASet(),
+        NeuronCentralitySET(),
+        NeuronEMASet(),
         # NeuronEMASkipSET(),
     ]
 
