@@ -524,32 +524,32 @@ class SET_MLP_CIFAR10:
             case "RandomSET":
                 [self.wm1_buffer, self.wm1_core_buffer
                  ] = self.rewireMask(self.w1[0], self.noPar1, self.wm1_buffer,
-                                     self.wm1_core_buffer, self.wm1_buffer,
+                                     self.wm1_core_buffer,
                                      {"temp_buf": self.wm1_core_buffer})
                 [self.wm2_buffer, self.wm2_core_buffer
                  ] = self.rewireMask(self.w2[0], self.noPar2, self.wm2_buffer,
-                                     self.wm2_core_buffer, self.wm2_buffer,
+                                     self.wm2_core_buffer,
                                      {"temp_buf": self.wm2_core_buffer})
                 [self.wm3_buffer, self.wm3_core_buffer
                  ] = self.rewireMask(self.w3[0], self.noPar3, self.wm3_buffer,
-                                     self.wm3_core_buffer, self.wm3_buffer,
+                                     self.wm3_core_buffer,
                                      {"temp_buf": self.wm3_core_buffer})
             case "NeuronCentralitySET":
                 [self.wm1_buffer, self.wm1_core_buffer
                  ] = self.rewireMask(self.w1[0], self.noPar1, self.wm1_buffer,
-                                     self.wm1_core_buffer, self.wm1_buffer, {
+                                     self.wm1_core_buffer, {
                                          "layer": "layer_1",
                                          "self": self
                                      })
                 [self.wm2_buffer, self.wm2_core_buffer
                  ] = self.rewireMask(self.w2[0], self.noPar2, self.wm2_buffer,
-                                     self.wm2_core_buffer, self.wm2_buffer, {
+                                     self.wm2_core_buffer, {
                                          "layer": "layer_2",
                                          "self": self
                                      })
                 [self.wm3_buffer, self.wm3_core_buffer
                  ] = self.rewireMask(self.w3[0], self.noPar3, self.wm3_buffer,
-                                     self.wm3_core_buffer, self.wm3_buffer, {
+                                     self.wm3_core_buffer, {
                                          "layer": "layer_3",
                                          "self": self
                                      })
