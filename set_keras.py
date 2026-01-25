@@ -650,106 +650,10 @@ class SET_MLP_CIFAR10:
                     f"Strategy {self.strategy.__class__.__name__} not implemented"
                 )
 
-    def rewireMask(self, weights_2d, noWeights: int, mask_2d, core_buffer_2d,
-                   extra_info: dict):
-        # prune modifies mask_2d in-place
-        self.strategy.prune_neurons(mask_2d, weights_2d.ravel(),
-                                    mask_2d.ravel(), extra_info)
-
-        np.copyto(core_buffer_2d, mask_2d)
-
-        noRewires = int(noWeights - np.sum(mask_2d))
-        if noRewires <= 0:
-            return
-
-        # regrow modifies mask_2d in-place
-        self.strategy.regrow_neurons(noRewires, weights_2d.shape, mask_2d,
-                                     extra_info)
-
-    def weightsEvolution(self, fisher_payload: dict | None = None):
-        self._capture_weights()
-
-        # Convenience: common extra_info keys used by your in-place strategies
-        def mk_extra(layer_name: str, core_buf: np.ndarray):
-            # Some strategies (RandomSET in your repo) assert extra_info is not None,
-            # and may use temp buffers. So always provide at least temp_buf.
-            ex = {
-                "layer": layer_name,
-                "self": self,
-                "temp_buf": core_buf,
-            }
-            return ex
-
-        needs_grad = bool(getattr(self.strategy, "needs_gradients", False))
-
-        #Layer 1
-        if needs_grad:
-            v1 = fisher_payload["Vs"][0]
-            g1 = fisher_payload["grads"][0]
-            ex1 = mk_extra("layer_1", self.wm1_core_buffer)
-            ex1.update({"v_flat": v1.ravel(), "g": g1, "v": v1})
-        else:
-            ex1 = mk_extra("layer_1", self.wm1_core_buffer)
-
-        self.rewireMask(self.w1[0], self.noPar1, self.wm1_buffer,
-                        self.wm1_core_buffer, ex1)
-
-        #Layer 2
-        if needs_grad:
-            if self.use_skip:
-                v2 = fisher_payload["Vs"][1]
-                g2 = fisher_payload["grads"][1]
-            else:
-                v2 = fisher_payload["Vs"][1]
-                g2 = fisher_payload["grads"][1]
-            ex2 = mk_extra("layer_2", self.wm2_core_buffer)
-            ex2.update({"v_flat": v2.ravel(), "g": g2, "v": v2})
-        else:
-            ex2 = mk_extra("layer_2", self.wm2_core_buffer)
-
-        self.rewireMask(self.w2[0], self.noPar2, self.wm2_buffer,
-                        self.wm2_core_buffer, ex2)
-
-        #Layer 3
-        if needs_grad:
-            if self.use_skip:
-                v3 = fisher_payload["Vs"][-1]
-                g3 = fisher_payload["grads"][-1]
-            else:
-                v3 = fisher_payload["Vs"][2]
-                g3 = fisher_payload["grads"][2]
-            ex3 = mk_extra("layer_3", self.wm3_core_buffer)
-            ex3.update({"v_flat": v3.ravel(), "g": g3, "v": v3})
-        else:
-            ex3 = mk_extra("layer_3", self.wm3_core_buffer)
-
-        self.rewireMask(self.w3[0], self.noPar3, self.wm3_buffer,
-                        self.wm3_core_buffer, ex3)
-
-        #Skip layer
-        if self.use_skip:
-            if needs_grad:
-
-                vskip = fisher_payload["Vs"][2]
-                gskip = fisher_payload["grads"][2]
-                exs = mk_extra("skip_02", self.wmSkip02_core_buffer)
-                exs.update({"v_flat": vskip.ravel(), "g": gskip, "v": vskip})
-            else:
-                exs = mk_extra("skip_02", self.wmSkip02_core_buffer)
-
-            self.rewireMask(
-                self.wSkip02[0],
-                self.noParSkip02,
-                self.wmSkip02_buffer,
-                self.wmSkip02_core_buffer,
-                exs,
-            )
-
-        # apply core masks to weights
         self.w1[0] *= self.wm1_buffer
         self.w2[0] *= self.wm2_buffer
         self.w3[0] *= self.wm3_buffer
-        if self.use_skip:
+        if use_skip:
             self.wSkip02[0] *= self.wmSkip02_buffer
 
         self.model.get_layer("sparse_1").kernel_constraint.update(
