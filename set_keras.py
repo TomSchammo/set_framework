@@ -99,11 +99,10 @@ from srelu import SReLU
 
 from strategies.random_set import RandomSET
 from strategies.neuron_centrality import NeuronCentralitySET
-from strategies.ema import NeuronEMASet
 from strategies.fisher_diagonal_set import FisherDiagonalSET
 from strategies.fisher_diagonal_skip_set import FisherDiagonalSkipSET
 from strategies.neuron_centrality_skip import NeuronCentralitySkipSET
-from strategies.ema_skip import NeuronEMASkipSET
+# from strategies.ema_skip import NeuronEMASkipSET
 
 AUTOTUNE = tf.data.AUTOTUNE
 
@@ -209,9 +208,8 @@ class SET_MLP_CIFAR10:
 
     def create_model(self):
 
-        use_skip = isinstance(
-            self.strategy,
-            (FisherDiagonalSkipSET, NeuronCentralitySkipSET, NeuronEMASkipSET))
+        use_skip = isinstance(self.strategy,
+                              (FisherDiagonalSkipSET, NeuronCentralitySkipSET))
 
         # allocate skip masks if needed (once)
         if use_skip and self.wmSkip02_buffer is None:
@@ -514,9 +512,8 @@ class SET_MLP_CIFAR10:
 
         old_weights = self.w1[0]
 
-        use_skip = isinstance(
-            self.strategy,
-            (FisherDiagonalSkipSET, NeuronCentralitySkipSET, NeuronEMASkipSET))
+        use_skip = isinstance(self.strategy,
+                              (FisherDiagonalSkipSET, NeuronCentralitySkipSET))
         if use_skip:
             self.wSkip02 = self.model.get_layer("skip_02").get_weights()
 
@@ -654,27 +651,27 @@ class SET_MLP_CIFAR10:
 
                 # W2 vs skip shared-budget centrality chooser
                 self.strategy.choose_between_w2_and_skip(self)
-            case "NeuronEMASkipSET":
-                # W1 & W3 normal EMA
-                self.rewireMask(self.w1[0],
-                                self.noPar1,
-                                self.wm1_buffer,
-                                self.wm1_core_buffer,
-                                extra_info={
-                                    "layer": "layer_1",
-                                    "self": self
-                                })
-                self.rewireMask(self.w3[0],
-                                self.noPar3,
-                                self.wm3_buffer,
-                                self.wm3_core_buffer,
-                                extra_info={
-                                    "layer": "layer_3",
-                                    "self": self
-                                })
-
-                # W2 vs Skip shared-budget chooser
-                self.strategy.choose_between_w2_and_skip(self)
+            # case "NeuronEMASkipSET":
+            #     # W1 & W3 normal EMA
+            #     self.rewireMask(self.w1[0],
+            #                     self.noPar1,
+            #                     self.wm1_buffer,
+            #                     self.wm1_core_buffer,
+            #                     extra_info={
+            #                         "layer": "layer_1",
+            #                         "self": self
+            #                     })
+            #     self.rewireMask(self.w3[0],
+            #                     self.noPar3,
+            #                     self.wm3_buffer,
+            #                     self.wm3_core_buffer,
+            #                     extra_info={
+            #                         "layer": "layer_3",
+            #                         "self": self
+            #                     })
+            #
+            #     # W2 vs Skip shared-budget chooser
+            #     self.strategy.choose_between_w2_and_skip(self)
 
             case _:
                 raise NotImplementedError(
