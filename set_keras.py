@@ -113,17 +113,16 @@ def find_last_pos(array, value):
     return array.shape[0] - idx
 
 
-def createWeightsMask(epsilon, noRows, noCols):
+def createWeightsMask(epsilon, no_rows, no_cols):
     # generate an Erdos Renyi sparse weights mask
-    mask_weights = np.random.rand(noRows, noCols)
-    prob = 1 - (epsilon * (noRows + noCols)) / (
-        noRows * noCols)  # normal tp have 8x connections
+    mask_weights = np.random.rand(no_rows, no_cols)
+    prob = 1 - (epsilon * (no_rows + no_cols)) / (
+        no_rows * no_cols)  # normal tp have 8x connections
     mask_weights[mask_weights < prob] = 0
     mask_weights[mask_weights >= prob] = 1
-    noParameters = np.sum(mask_weights)
-    print("Create Sparse Matrix: No parameters, NoRows, NoCols ", noParameters,
-          noRows, noCols)
-    return [noParameters, mask_weights]
+    no_parameters = np.sum(mask_weights)
+    print(f"Create Sparse Matrix: {no_parameters=}, {no_rows=}, {no_cols=}")
+    return [no_parameters, mask_weights]
 
 
 class SET_MLP_CIFAR10:
@@ -215,7 +214,7 @@ class SET_MLP_CIFAR10:
 
     def rewireMask(self,
                    weights,
-                   noWeights,
+                   no_weights,
                    mask,
                    core_buffer,
                    mask_buffer,
@@ -234,11 +233,11 @@ class SET_MLP_CIFAR10:
         np.copyto(core_buffer, mask_buffer)
 
         # occupied = set(zip(*np.where(rewiredWeights == 1)))
-        noRewires = int(noWeights - np.sum(mask_buffer))
+        no_rewires = int(no_weights - np.sum(mask_buffer))
 
-        assert noRewires > 0, "If no weights are rewired, there likely is a bug your code!"
+        assert no_rewires > 0, "If no weights are rewired, there likely is a bug your code!"
 
-        self.strategy.regrow_neurons(noRewires, weights.shape, mask_buffer,
+        self.strategy.regrow_neurons(no_rewires, weights.shape, mask_buffer,
                                      extra_info)
 
         # for i, j in new_positions:
@@ -417,10 +416,10 @@ class SET_MLP_CIFAR10:
         x_test = x_test.astype('float32')
 
         #normalize data
-        xTrainMean = np.mean(x_train, axis=0)
-        xTtrainStd = np.std(x_train, axis=0)
-        x_train = (x_train - xTrainMean) / xTtrainStd
-        x_test = (x_test - xTrainMean) / xTtrainStd
+        x_train_mean = np.mean(x_train, axis=0)
+        x_train_std = np.std(x_train, axis=0)
+        x_train = (x_train - x_train_mean) / x_train_std
+        x_test = (x_test - x_train_mean) / x_train_std
 
         return [x_train, x_test, y_train, y_test]
 
