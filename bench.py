@@ -4,7 +4,7 @@ from strategies.neuron_centrality_skip import NeuronCentralitySkipSET
 from strategies.ema import NeuronEMASet
 from strategies.fisher_diagonal_set import FisherDiagonalSET
 from strategies.fisher_diagonal_skip_set import FisherDiagonalSkipSET
-from strategies.ema_skip import NeuronEMASkipSet
+from strategies.ema_skip import NeuronEMASkipSET
 
 from set_keras import SET_MLP_CIFAR10
 import numpy as np
@@ -84,7 +84,7 @@ def main():
             gpus[0],
             [tf.config.LogicalDeviceConfiguration(memory_limit=10240)])
 
-    strategies = [RandomSET(), NeuronCentralitySET(), NeuronEMASet(), FisherDiagonalSET(), NeuronCentralitySkipSET(), NeuronEMASkipSet(), FisherDiagonalSkipSET()]
+    strategies = [RandomSET(), NeuronCentralitySET(), NeuronEMASet(), FisherDiagonalSET(), NeuronCentralitySkipSET(), NeuronEMASkipSET(), FisherDiagonalSkipSET()]
 
     #strategies = [NeuronEMASet()]
     models = [SET_MLP_CIFAR10]
