@@ -70,7 +70,7 @@ class NeuronEMASkipSET(NeuronEMASet):
                 return np.ones_like(cols, dtype=np.float64)
             return np.asarray(ema, dtype=np.float64)[cols]
 
-   -
+   
         if cand_w2 > 0:
             idx = self.rng.choice(inactive_w2.shape[0], size=cand_w2, replace=False)
             c = inactive_w2[idx]
