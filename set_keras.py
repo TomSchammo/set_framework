@@ -103,7 +103,7 @@ from strategies.ema import NeuronEMASet
 from strategies.fisher_diagonal_set import FisherDiagonalSET
 from strategies.fisher_diagonal_skip_set import FisherDiagonalSkipSET
 from strategies.neuron_centrality_skip import NeuronCentralitySkipSET
-from strategies.neuron_ema_skip import NeuronEMASkipSET
+from strategies.ema_skip import NeuronEMASkipSET
 
 
 AUTOTUNE = tf.data.AUTOTUNE
