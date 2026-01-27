@@ -27,6 +27,9 @@ class NeuronCentralitySET(BaseSETStrategy):
         M_out=None,  # (n_next, n_cur)
         eps=1e-12,
     ):
+        # Convention: W_in shape (n_prev, n_cur), W_out shape (n_cur, n_next)
+        # incoming: sum over prev (axis=0) -> (n_cur,)
+        # outgoing: sum over next (axis=1) -> (n_cur,)
         W = W_in
         A_in = np.abs(W)
         if M_in is not None:
@@ -99,6 +102,7 @@ class NeuronCentralitySET(BaseSETStrategy):
                        dimensions: Tuple[int, int],
                        mask: np.ndarray,
                        extra_info: Optional[dict] = None) -> None:
+        
         n_rows, n_cols = dimensions
         k = int(num_to_add)
 
@@ -164,8 +168,6 @@ class NeuronCentralitySET(BaseSETStrategy):
             if I_target.size == n_cols and I_source.size == n_rows:
                 # Preserve your original behavior:
                 imp_prod = I_target[zc] * I_source[zr]
-
-                # (Normal mapping would be: I_target[rows] * I_source[cols])
 
                 #scores = self.alpha * imp_prod + (1.0 - self.alpha) * (1.0 / float(N_zero))
                 scores = self.alpha * imp_prod + (1.0 - self.alpha) * (1.0)
