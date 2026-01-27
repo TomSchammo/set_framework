@@ -47,7 +47,7 @@ def main():
         print_help()
         return
 
-    assert args.max_epochs, "Max epochs has to be provided!"
+    assert args.max_epochs is not None, "Max epochs has to be provided!"
 
     assert args.accuracy != args.time, "Expected either 'accuracy' or 'time'"
 
@@ -71,7 +71,7 @@ def main():
     target_accuracy = 1.0 if args.accuracy else args.target_accuracy
     max_epochs = args.max_epochs
 
-    if args.seed:
+    if args.seed is not None:
         np.random.seed(int(args.seed))
 
     gpus = tf.config.list_physical_devices("GPU")
@@ -100,7 +100,7 @@ def main():
     for model_cls in models:
         save_dir = f"{model_cls.__name__.lower()}_results_{run_type}"
 
-        if args.seed:
+        if args.seed is not None:
             save_dir = f"{save_dir}_seed={args.seed}"
 
         Path(save_dir).mkdir(exist_ok=True)
